@@ -50,8 +50,9 @@ export function topicQuery(t: Pick<Topic, "name" | "subtopics" | "keywords">): s
 export function attachTopicSources(topics: Topic[], retriever: Retriever): Topic[] {
   // Each notes section is "owned" by the single topic it matches best, so a section
   // never counts as evidence for two topics. Ties to the topic that the retriever ranks highest.
-  const notes = retriever.all().filter((c) => c.kind === "notes");
-  const pool = notes.length ? notes : retriever.all();
+  // Front matter (committees, publishers, prefaces, pledges) is filtered out.
+  const notes = retriever.all().filter((c) => c.kind === "notes" && !c.section.toLowerCase().includes("front matter"));
+  const pool = notes.length ? notes : retriever.all().filter((c) => !c.section.toLowerCase().includes("front matter"));
   const topicIdx = new BM25(topics.map((t) => ({ id: t.id, text: topicQuery(t) })));
   const owned = new Map<string, string[]>();
   for (const c of pool) {

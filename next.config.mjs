@@ -4,7 +4,6 @@ const nextConfig = {
   serverExternalPackages: ["unpdf"],
   // hackathon safety net: a stray type/lint warning should never block a Vercel deploy
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
 };
 
 export default nextConfig;

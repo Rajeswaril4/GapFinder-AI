@@ -64,7 +64,14 @@ export function buildPlan(
   for (const s of statuses) {
     const minutes = alloc.get(s.topicId) ?? 0;
     const t = topicsById.get(s.topicId);
-    const sources = (t?.sourceChunkIds ?? []).map((id) => chunkById.get(id)).filter(Boolean).map((c) => citeLabel(c!));
+    const sources = Array.from(
+      new Set(
+        (t?.sourceChunkIds ?? [])
+          .map((id) => chunkById.get(id))
+          .filter(Boolean)
+          .map((c) => citeLabel(c!))
+      )
+    );
     const focus = (s.weakSubtopics.length ? s.weakSubtopics : t?.subtopics ?? []).slice(0, 3);
     const pq = data.pastQuestions.find((q) => q.topicId === s.topicId);
     const kind: PlanBlock["kind"] =

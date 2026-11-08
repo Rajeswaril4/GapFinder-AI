@@ -117,9 +117,9 @@ export default function TopicsPage() {
           <details style={{ marginTop: 10 }}>
             <summary style={{ cursor: "pointer", fontSize: 14 }}>Related source material ({topic.sourceChunkIds.length} sections)</summary>
             <div className="stack" style={{ gap: 6, marginTop: 6 }}>
-              {topic.sourceChunkIds.map((id) => {
+              {topic.sourceChunkIds.map((id, idx) => {
                 const c = data.chunks.find((x) => x.id === id);
-                return c ? <div className="cite" key={id}>📖 {citeLabel(c)}</div> : null;
+                return c ? <div className="cite" key={`${id}-${idx}`}>📖 {citeLabel(c)}</div> : null;
               })}
             </div>
           </details>

@@ -10,6 +10,8 @@ import { ingest } from "./ingest";
 import { Retriever, attachTopicSources, extractPastQuestionsDetailed, mapQuestionsToTopics, topicQuery } from "./retrieval";
 import { buildGapReport, questionAllocation } from "./analysis";
 import { buildPlan, daysUntil } from "./planner";
+import { extractIndexMatter, extractIndexSection, stripFrontMatter } from "./text";
+import { isFrontMatterHeading } from "./chunk";
 
 // ---------------------------------------------------------------- helpers
 export async function post<T>(url: string, body: unknown): Promise<T> {
@@ -95,6 +97,57 @@ export async function addMaterial(
   return { data: withRuns(next, log), warnings: res.material.warnings };
 }
 
+/** Server-side ingestion pipeline: generates Gemini embeddings and indexes into Qdrant Cloud. */
+export async function uploadMaterialFile(
+  data: StudentData,
+  file: File,
+  kind: MaterialKind,
+  userId = "demo_student",
+  log: RunLog = []
+): Promise<{ data: StudentData; duplicateOf?: string; warnings: string[] }> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("kind", kind);
+    formData.append("userId", userId);
+    formData.append("subjectId", data.subject || "default");
+
+    const res = await fetch("/api/ingest", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (res.ok) {
+      const serverResult = await res.json();
+      if (serverResult.duplicateOf) {
+        return { data, duplicateOf: serverResult.duplicateOf, warnings: serverResult.warnings || [] };
+      }
+
+      let next: StudentData = {
+        ...data,
+        materials: [...data.materials, { ...serverResult.material, status: "ready" }],
+        chunks: [...data.chunks, ...serverResult.chunks],
+      };
+      if (next.topics.length) {
+        next = await track(
+          log,
+          "Previous Paper Analysis",
+          "re-map after upload",
+          () => remap(next),
+          (d) => `${d.pastQuestions.length} past-paper questions, ${d.pastQuestions.filter((q) => q.needsReview).length} need review`
+        );
+      }
+      return { data: withRuns(next, log), warnings: serverResult.warnings || [] };
+    }
+  } catch (err) {
+    console.warn("[uploadMaterialFile] Server upload failed, falling back to client-side extraction:", err);
+  }
+
+  // Fallback to client-side extraction if server is unavailable
+  const parsed = await parseFile(file);
+  return addMaterial(data, { name: parsed.name, kind, pages: parsed.pages }, log);
+}
+
 export function removeMaterial(data: StudentData, id: string): StudentData {
   return remap({
     ...data,
@@ -115,14 +168,55 @@ interface ApiTopic {
   prerequisites: string[]; // names
 }
 
-/** AI topic map from the syllabus (falls back to notes headings when no syllabus is uploaded). */
+/** AI topic map from the syllabus (prioritizes authoritative textbook index, falls back to syllabus or clean notes headings). */
 export async function buildTopicMap(data: StudentData): Promise<StudentData> {
   const log: RunLog = [];
+
+  // 1. Authoritative: check if any uploaded material contains an INDEX or Table of Contents
+  let indexMatter: string | null = null;
+  for (const m of data.materials) {
+    const idx = extractIndexMatter(m.pages);
+    if (idx) {
+      indexMatter = idx;
+      break;
+    }
+    const idxSec = extractIndexSection(m.pages.join("\n"));
+    if (idxSec) {
+      indexMatter = idxSec;
+      break;
+    }
+  }
+
   const syl = data.materials.filter((m) => m.kind === "syllabus").map((m) => m.pages.join("\n")).join("\n\n");
-  const source =
-    syl.trim().length > 30
-      ? syl
-      : "Headings from the student's notes:\n" + Array.from(new Set(data.chunks.filter((c) => c.kind === "notes").map((c) => c.section))).join("\n");
+  
+  let source = "";
+  let logSourceType = "";
+
+  if (indexMatter) {
+    source = indexMatter;
+    logSourceType = "authoritative textbook index";
+  } else if (syl.trim().length > 30) {
+    const sylIdx = extractIndexSection(syl);
+    if (sylIdx) {
+      source = sylIdx;
+      logSourceType = "authoritative index extracted from syllabus";
+    } else {
+      source = stripFrontMatter(syl);
+      logSourceType = `syllabus text (${source.length} chars)`;
+    }
+  } else {
+    // Clean notes headings: exclude front matter and general headings
+    const validHeadings = Array.from(
+      new Set(
+        data.chunks
+          .filter((c) => c.kind === "notes" && !c.section.toLowerCase().includes("front matter"))
+          .map((c) => c.section)
+      )
+    ).filter((h) => !isFrontMatterHeading(h));
+    source = "Headings from the student's notes:\n" + validHeadings.join("\n");
+    logSourceType = "notes headings (no index or syllabus found)";
+  }
+
   const papers = data.materials.filter((m) => m.kind === "past_paper");
   const heuristicCount = papers.reduce((s, m) => s + extractPastQuestionsDetailed(m.pages.join("\n")).length, 0);
   const paperText = papers.length && heuristicCount < 2 ? papers.map((m) => m.pages.join("\n")).join("\n\n") : undefined;
@@ -130,7 +224,7 @@ export async function buildTopicMap(data: StudentData): Promise<StudentData> {
   const res = await track(
     log,
     "Syllabus Mapping",
-    syl ? `syllabus text (${syl.length} chars)` : "notes headings (no syllabus uploaded)",
+    logSourceType,
     () => post<{ subject: string; topics: ApiTopic[]; questions: string[] }>("/api/topic-map", { syllabus: source, pastPaper: paperText }),
     (r) => `${r.topics.length} topics, ${r.topics.reduce((s, t) => s + t.subtopics.length, 0)} subtopics`
   );

@@ -146,7 +146,7 @@ export default function ExplainPage() {
                 {m.role === "assistant" && !!m.sources?.length && (
                   <div className="sources">
                     {m.sources.map((s, k) => (
-                      <details key={s.id} className="cite">
+                      <details key={`${s.id}-${k}`} className="cite">
                         <summary style={{ cursor: "pointer" }}>[{k + 1}] {citeLabel(s)}</summary>
                         <div style={{ color: "var(--ink)", marginTop: 6, whiteSpace: "pre-wrap" }}>{s.text}</div>
                       </details>

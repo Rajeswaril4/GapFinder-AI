@@ -11,19 +11,30 @@ const SESSION_KEY = "gf_session";
 const DB_NAME = "gapfinder";
 const STORE = "students";
 
+const inMemoryStorage = new Map<string, string>();
+
 function safeGet(key: string): string | null {
   try {
-    return localStorage.getItem(key);
+    if (typeof localStorage !== "undefined" && typeof localStorage.getItem === "function") {
+      const val = localStorage.getItem(key);
+      if (val !== null) return val;
+    }
   } catch {
-    return null;
+    /* storage unavailable */
   }
+  return inMemoryStorage.get(key) ?? null;
 }
+
 function safeSet(key: string, val: string | null) {
+  if (val === null) inMemoryStorage.delete(key);
+  else inMemoryStorage.set(key, val);
   try {
-    if (val === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, val);
+    if (typeof localStorage !== "undefined") {
+      if (val === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, val);
+    }
   } catch {
-    /* storage unavailable (private mode) — app still works for this tab */
+    /* storage unavailable (private mode or Node environment) — app still works */
   }
 }
 
@@ -32,12 +43,35 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 const memoryFallback = new Map<string, StudentData>();
 
 function openDb(): Promise<IDBDatabase> {
+  if (typeof indexedDB === "undefined") {
+    return Promise.reject(new Error("IndexedDB is not available in this environment."));
+  }
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    try {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        try {
+          if (!req.result.objectStoreNames.contains(STORE)) {
+            req.result.createObjectStore(STORE);
+          }
+        } catch {
+          /* store already created or upgrading */
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => {
+        dbPromise = null;
+        reject(req.error || new Error("Failed to open IndexedDB"));
+      };
+      req.onblocked = () => {
+        dbPromise = null;
+        reject(new Error("IndexedDB connection blocked by another window or tab."));
+      };
+    } catch (err) {
+      dbPromise = null;
+      reject(err);
+    }
   });
   return dbPromise;
 }

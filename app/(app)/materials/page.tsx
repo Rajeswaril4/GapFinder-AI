@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/components/AppProvider";
 import { Alert, Button, PageHead, when } from "@/components/ui";
 import type { DocStatus, MaterialKind } from "@/lib/types";
-import { addMaterial, buildTopicMap, parseFile, removeMaterial } from "@/lib/workflows";
+import { addMaterial, uploadMaterialFile, buildTopicMap, parseFile, removeMaterial } from "@/lib/workflows";
 
 const KINDS: { value: MaterialKind; label: string; hint: string }[] = [
   { value: "syllabus", label: "Syllabus", hint: "List of units/topics. It is the authoritative structure for the topic map." },
@@ -30,7 +30,7 @@ function Lifecycle({ status }: { status: DocStatus }) {
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function MaterialsPage() {
-  const { data, update } = useApp();
+  const { data, update, user } = useApp();
   const router = useRouter();
   const [kind, setKind] = useState<MaterialKind>("notes");
   const [pasteName, setPasteName] = useState("");
@@ -39,29 +39,29 @@ export default function MaterialsPage() {
   const [live, setLive] = useState<{ name: string; status: DocStatus; error?: string }[]>([]);
   const [msgs, setMsgs] = useState<{ kind: "error" | "ok" | "info"; text: string }[]>([]);
 
-  async function ingestOne(name: string, getPages: () => Promise<{ name: string; pages: string[] }>) {
+  async function ingestOneFile(file: File) {
     const setStatus = (status: DocStatus, error?: string) =>
-      setLive((l) => l.map((x) => (x.name === name ? { ...x, status, error } : x)));
-    setLive((l) => [...l.filter((x) => x.name !== name), { name, status: "uploaded" }]);
+      setLive((l) => l.map((x) => (x.name === file.name ? { ...x, status, error } : x)));
+    setLive((l) => [...l.filter((x) => x.name !== file.name), { name: file.name, status: "uploaded" }]);
     try {
       setStatus("processing");
-      const parsed = await getPages(); // text extraction (server for PDFs)
+      const current = await update((d) => d); // latest saved data
       setStatus("analyzed");
-      await pause(150);
-      const current = await update((d) => d); // latest saved data (several files can be queued)
-      const result = await addMaterial(current, { name: parsed.name, kind, pages: parsed.pages });
+      await pause(100);
+      setStatus("indexing");
+      const userId = user?.id || user?.email || "demo_student";
+      const result = await uploadMaterialFile(current, file, kind, userId);
       if (result.duplicateOf) {
         setStatus("error", `Duplicate of “${result.duplicateOf}” — skipped.`);
         return;
       }
-      setStatus("indexed");
       await update(() => result.data);
       await pause(150);
       setStatus("ready");
       setMsgs((m) => [
         ...m,
-        { kind: "ok", text: `“${parsed.name}”: ${parsed.pages.length} page(s) extracted and indexed for retrieval.` },
-        ...result.warnings.map((w) => ({ kind: "info" as const, text: `“${parsed.name}”: ${w}` })),
+        { kind: "ok", text: `“${file.name}”: chunked, embedded with Gemini, and indexed into Qdrant Cloud.` },
+        ...result.warnings.map((w) => ({ kind: "info" as const, text: `“${file.name}”: ${w}` })),
       ]);
     } catch (e) {
       setStatus("error", (e as Error).message);
@@ -71,16 +71,17 @@ export default function MaterialsPage() {
   async function onFiles(files: FileList | null) {
     if (!files?.length) return;
     setMsgs([]);
-    setBusy("Processing uploads…");
-    for (const f of Array.from(files)) await ingestOne(f.name, () => parseFile(f));
+    setBusy("Embedding & indexing vectors in Qdrant Cloud…");
+    for (const f of Array.from(files)) await ingestOneFile(f);
     setBusy("");
   }
 
   async function onPaste() {
     if (pasteText.trim().length < 20) return setMsgs([{ kind: "error", text: "Paste at least a few lines of text." }]);
     const name = pasteName || `${label(kind)} (pasted)`;
+    const file = new File([pasteText], `${name}.txt`, { type: "text/plain" });
     setMsgs([]);
-    await ingestOne(name, async () => ({ name, pages: [pasteText] }));
+    await ingestOneFile(file);
     setPasteText("");
     setPasteName("");
   }
@@ -209,7 +210,17 @@ export default function MaterialsPage() {
                       </td>
                       <td className="muted">{when(m.createdAt)}</td>
                       <td>
-                        <Button size="sm" variant="danger" onClick={() => confirm(`Remove “${m.name}” and its indexed chunks?`) && update((d) => removeMaterial(d, m.id))}>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={async () => {
+                            if (confirm(`Remove “${m.name}” and its indexed vectors?`)) {
+                              const userId = user?.id || user?.email || "demo_student";
+                              fetch(`/api/ingest?id=${encodeURIComponent(m.id)}&userId=${encodeURIComponent(userId)}`, { method: "DELETE" }).catch(() => {});
+                              await update((d) => removeMaterial(d, m.id));
+                            }
+                          }}
+                        >
                           Remove
                         </Button>
                       </td>

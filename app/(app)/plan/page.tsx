@@ -136,10 +136,22 @@ export default function PlanPage() {
                               <p style={{ fontSize: 13.5, margin: "4px 0", color: "var(--strong)" }}>✓ Success: {b.successCriteria}</p>
                             )}
                             {b.kind === "retest" && <Link className="btn sm" href="/quiz">Take quiz now</Link>}
-                            {b.focus.length > 0 && <div>{b.focus.map((f) => <span key={f} className="chip">{f}</span>)}</div>}
+                            {b.focus.length > 0 && (
+                              <div>
+                                {b.focus.map((f, fi) => (
+                                  <span key={`${f}-${fi}`} className="chip">
+                                    {f}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             {b.sources.length > 0 && (
                               <div className="stack" style={{ gap: 4, marginTop: 6 }}>
-                                {b.sources.map((s) => <div key={s} className="cite">📖 Read: {s}</div>)}
+                                {b.sources.map((s, si) => (
+                                  <div key={`${s}-${si}`} className="cite">
+                                    📖 Read: {s}
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>

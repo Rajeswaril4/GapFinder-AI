@@ -13,7 +13,9 @@ const NAV = [
   { href: "/report", label: "Gap report", step: "4" },
   { href: "/plan", label: "Revision plan", step: "5" },
   { href: "/explain", label: "Learning assistant", step: "?" },
+  { href: "/teacher", label: "Teacher hub", step: "★" },
   { href: "/agents", label: "Agent activity", step: "⚙" },
+  { href: "/admin", label: "Observability", step: "📊" },
   { href: "/how-it-works", label: "How it works", step: "i" },
 ];
 

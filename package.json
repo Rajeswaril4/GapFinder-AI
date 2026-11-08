@@ -7,16 +7,25 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "tsx tests/core.test.ts"
+    "test": "vitest run && tsx tests/core.test.ts",
+    "test:unit": "vitest run tests/unit.test.ts",
+    "test:integration": "vitest run tests/integration.test.ts",
+    "test:e2e": "vitest run tests/e2e.test.ts",
+    "test:core": "tsx tests/core.test.ts"
   },
   "dependencies": {
     "@ai-sdk/groq": "^2.0.0",
+    "@qdrant/js-client-rest": "^1.20.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.119.0",
     "ai": "^5.0.0",
     "crypto-js": "^4.2.0",
-    "next": "^15.5.0",
+    "inngest": "^4.26.2",
+    "next": "^16.4.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "unpdf": "^1.0.0",
+    "vitest": "^5.1.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

@@ -5,7 +5,7 @@ import { ApiError, fail } from "@/lib/llm";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_BYTES = 4 * 1024 * 1024; // Vercel serverless request limit is ~4.5 MB
+const MAX_BYTES = 50 * 1024 * 1024; // Vercel serverless request limit is ~4.5 MB
 
 /** PDF text often comes back as one long line; put line breaks back before headings and question numbers. */
 function restoreLines(page: string): string {
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) throw new ApiError("No file uploaded", 400);
-    if (file.size > MAX_BYTES) throw new ApiError("File is larger than 4 MB. Split the PDF or paste the text instead.", 413);
+    if (file.size > MAX_BYTES) throw new ApiError("File is larger than 50 MB. Split the PDF or paste the text instead.", 413);
 
     const name = file.name || "upload";
     const buf = new Uint8Array(await file.arrayBuffer());

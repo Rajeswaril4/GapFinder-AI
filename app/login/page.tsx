@@ -29,7 +29,7 @@ export default function LoginPage() {
       else await signUp(name, email, password);
       router.replace("/dashboard");
     } catch (err) {
-      setError((err as Error).message);
+      setError((err as Error).message || "Authentication failed. Please verify your credentials.");
     } finally {
       setBusy(false);
     }

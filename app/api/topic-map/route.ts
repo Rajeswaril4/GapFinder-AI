@@ -5,6 +5,7 @@
 // deterministic retrieval in the browser — see lib/retrieval.ts.)
 import { z } from "zod";
 import { fail, generateJson } from "@/lib/llm";
+import { extractIndexSection, stripFrontMatter } from "@/lib/text";
 
 export const maxDuration = 60;
 
@@ -33,24 +34,33 @@ export async function POST(req: Request) {
     const parsed = Body.safeParse(await req.json());
     if (!parsed.success) return Response.json({ error: parsed.error.issues[0].message }, { status: 400 });
     const { syllabus, pastPaper } = parsed.data;
-    const text = syllabus.slice(0, 12000);
+    const indexMatter = extractIndexSection(syllabus);
+    const cleanText = indexMatter || stripFrontMatter(syllabus);
+    const text = cleanText.slice(0, 6000);
 
     const out = await generateJson({
       schema: Schema,
       temperature: 0.1,
       system:
-        "You are the Syllabus Mapping Agent. You build a topic map (like a table of contents) from a student's syllabus. " +
-        "The syllabus is authoritative: use ONLY topics that appear in the provided text. Never add topics from your own knowledge. " +
+        "You are the Syllabus Mapping Agent. You build an authoritative topic map (like a table of contents) from a student's syllabus or textbook index. " +
+        "The syllabus/index is strictly authoritative: use ONLY academic topics that appear in the provided text. Never add topics from your own knowledge. " +
+        "CRITICAL: Ignore all administrative, editorial, and pedagogical front-matter: " +
+        "do NOT create topics from committee members, writers, editors, coordinators, publishers, copyright notices, 'Intro...', " +
+        "letters to teachers or students ('Dear Teachers', 'Dear Students'), QR code guides, academic standards rubrics, " +
+        "national anthem, or pledge. " +
+        "If a TEXTBOOK INDEX or TABLE OF CONTENTS is present, extract ONLY the academic chapters and concepts listed in it " +
+        "(e.g. Nutrition, Respiration, Transportation, Excretion, Coordination, Reproduction, Heredity, Environment, Natural Resources). " +
         "Merge duplicates. Prerequisites must be names of other topics in your list.",
       prompt:
-        `SYLLABUS TEXT:\n"""\n${text}\n"""\n\n` +
+        `SYLLABUS / INDEX TEXT:\n"""\n${text}\n"""\n\n` +
         `Return {"subject": string, "topics": [{"name", "description", "chapter", "subtopics": string[], "keywords": string[], "learningObjectives": string[], "prerequisites": string[]}]` +
         (pastPaper ? `, "questions": string[]` : "") +
         `}.\nRules: 3-12 topics in syllabus order (unit/chapter level); 2-6 subtopics each, worded as in the syllabus; ` +
         `description = one sentence; 2-4 learningObjectives starting with a verb (Explain, Describe, Compare, Calculate…); ` +
-        `4-10 keywords a textbook section on it would contain; prerequisites = other topics from this list that must be understood first (often empty).` +
+        `4-10 keywords a textbook section on it would contain; prerequisites = other topics from this list that must be understood first (often empty). ` +
+        `CRITICAL: ONLY extract academic subject topics from the index/syllabus. DO NOT include committee members, authors, teacher guidelines, academic standards rubrics, or front-matter preamble.` +
         (pastPaper
-          ? `\n\nAlso split this PAST PAPER into its individual questions (verbatim, without marks or numbering) as "questions":\n"""\n${pastPaper.slice(0, 6000)}\n"""`
+          ? `\n\nAlso split this PAST PAPER into its individual questions (verbatim, without marks or numbering) as "questions":\n"""\n${pastPaper.slice(0, 3000)}\n"""`
           : ""),
     });
 
