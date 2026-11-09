@@ -1,146 +1,246 @@
 # GapFinder AI: Find What You Don't Know. Master What Matters.
 
-> Hackathon PS 2026: *GapFinder AI*. A student uploads their syllabus, textbook chapters, notes and past papers. The app tests them on **their own material**, measures topic-level mastery and diagnoses weak topics with evidence. It then builds a revision plan that adapts every time they re-test.
+> **GapFinder AI** tests students on **their own materials** (syllabus, textbooks, lecture notes, and past papers), identifies exact knowledge gaps with page-level citations, diagnoses recurring misconceptions, and builds an adaptive, day-by-day revision plan that updates dynamically every time they re-test.
 
-**Live demo:** `https://<your-project>.vercel.app` · **Demo login:** `demo@gapfinder.ai` / `demo1234`
+[![Next.js 16](https://img.shields.io/badge/Next.js-16.4-black?logo=next.js)](https://nextjs.org/)
+[![React 19](https://img.shields.io/badge/React-19-blue?logo=react)](https://react.dev/)
+[![Google Gemini](https://img.shields.io/badge/Google_Gemini-3.5_Flash-4285F4?logo=google)](https://ai.google.dev/)
+[![Groq](https://img.shields.io/badge/Fallback-Groq_GPT--OSS--120B-f55036)](https://groq.com/)
+[![Qdrant Cloud](https://img.shields.io/badge/Vector_DB-Qdrant_Cloud-dc2626)](https://qdrant.tech/)
+[![Supabase](https://img.shields.io/badge/Database_&_Auth-Supabase-3ECF8E?logo=supabase)](https://supabase.com/)
+[![Tests](https://img.shields.io/badge/Tests-52_Passed-success)](https://vitest.dev/)
 
-The main output is a **diagnosis**, not a chat answer. Chat is only a helper.
+---
+
+## Key Differentiators
+
+Unlike generic AI chat tutors that answer user queries from general training data, **GapFinder AI focuses on diagnostic measurement**:
+1. **Source Grounding**: All questions, explanations, and revision tasks cite exact source pages from the student's uploaded material.
+2. **Adaptive Revision Planning**: Generates day-by-day study tasks based on a weighted priority algorithm ($0.55 \times \text{weakness} + 0.25 \times \text{exam importance} + 0.10 \times \text{misconceptions} + 0.10 \times \text{prerequisites}$).
+3. **Resilient Dual-AI Architecture**: Powered primarily by **Google Gemini 3.5 Flash** and dense vector embeddings (`gemini-embedding-001`, 768d), with automatic fallback to **Groq** (`openai/gpt-oss-120b`) and BM25 lexical search.
+4. **Hybrid Cloud + Offline Fallback**: Real-time Supabase PostgreSQL, Supabase Auth, and Qdrant Cloud when online, with deterministic in-browser IndexedDB fallback for offline demos.
 
 ```
-Upload → Topic map → Diagnostic quiz → Evaluate → Gap report → Revision plan → Re-test → diagnosis + plan update
+Upload Material → Syllabus Map → Diagnostic Quiz → Evaluation → Gap Report → Revision Plan → Re-Test → Dynamic Update
 ```
 
 ---
 
-## Pages
+## Application Pages & Modules
 
-| Page | What it shows |
-|---|---|
-| **Landing** (`/`) | Problem, how it works, features, a sample diagnostic report, call to action |
-| **Login** | Sign up, log in, one-click demo account, protected routes |
-| **Dashboard** | Overall mastery, topics assessed / strong / weak / not assessed, upcoming revision tasks, recent quiz results, mastery trend chart, per-topic attempt table |
-| **Materials** | Upload several PDF/TXT/MD files or paste text. Shows the status lifecycle *Uploaded → Processing → Analyzed → Indexed → Ready*, detected type, duplicate and poor-extraction warnings, and indexed sections |
-| **Syllabus map** | Topic tree coloured by mastery (green / amber / red / grey). Click a topic for its description, objectives, mastery, misconceptions, sources and next step. **Edit, add or delete topics and prerequisites** before testing. Includes the past-paper analysis table with marks, type, difficulty, mapping confidence and manual review |
-| **Diagnostic quiz** | One question at a time with previous/next, progress, type, difficulty, marks, optional confidence rating and submit. Answers are revealed only after submission, with "Explain my mistake" links |
-| **Gap analysis report** | Overall mastery, coverage, mastery chart with thresholds, weakest topics, misconception analysis (recurring ones flagged), and per-topic level, confidence, trend, evidence table with citations, AI reason and next step |
-| **Revision planner** | Exam date or number of days, plus hours per day. Day-by-day tasks with priority, minutes, reading sections, practice question, success criteria and completion tick-boxes, ending in a follow-up assessment |
-| **Learning assistant** | RAG chat that only uses uploaded material, with [n] citations. Explains topics or mistakes and writes extra practice questions. Refuses when the material doesn't cover the question |
-| **Agent activity** | The 10 agents, what each one does, and an execution log (input, output, duration, ok / fallback / error) |
-| **How it works** | Where retrieval and generation are used, and how they are kept apart |
-
-## The 10 agents (one fixed workflow, no free-running agents)
-
-| # | Agent | Runs as | Code |
-|---|---|---|---|
-| 1 | Document Ingestion: validation, per-page extraction, type detection, headings, duplicate fingerprint, poor-extraction flags, heading-aware chunking with overlap | code | `lib/ingest.ts`, `lib/chunk.ts`, `api/parse` |
-| 2 | Syllabus Mapping: topics, subtopics, learning objectives, prerequisites, duplicate merge. The syllabus is the authority and the student can edit the result | LLM | `api/topic-map` |
-| 3 | Knowledge Retrieval: BM25 over the student's own chunks, topic-filtered, configurable top-K, citations | code | `lib/bm25.ts`, `lib/retrieval.ts` |
-| 4 | Previous Paper Analysis: question extraction, marks, type and difficulty, topic mapping with confidence, low-confidence questions flagged for review, rarely-examined topics | code | `lib/retrieval.ts` |
-| 5 | Diagnostic Question Generation: MCQ, multi-select, true/false, fill-in, short answer and numerical. Every question is validated before display | LLM | `api/quiz` |
-| 6 | Answer Evaluation: answer key in code for objective types (numericals with tolerance), rubric scoring by the model for short answers, misconception detection | code + LLM | `api/evaluate`, `lib/analysis.ts` |
-| 7 | Knowledge Gap Diagnosis: weighted mastery, level, confidence and priority in code; the model writes reasons and next steps | code + LLM | `lib/analysis.ts`, `api/gap-analysis` |
-| 8 | Revision Planning: a scheduler that fits the time budget, plus model-written tasks and success criteria | code + LLM | `lib/planner.ts`, `api/plan` |
-| 9 | Progress Monitoring: compares diagnoses, detects level changes and recurring mistakes, triggers re-planning | code | `lib/workflows.ts` |
-| 10 | Learning Assistant: supplementary, cited explanations and practice | LLM | `api/explain` |
-
-The orchestrator is `lib/workflows.ts`. Every model output is validated with **Zod**, gets one automatic repair retry, and falls back to the computed result if the model still fails.
-
-## Retrieval vs. generation
-
-| Step | Retrieval (deterministic BM25) | Generation (LLM) | Guardrail |
-|---|---|---|---|
-| Topic map | Links each notes section to the topic it matches best and maps past-paper questions to topics, which gives exam weight | Topics, objectives and prerequisites from the syllabus text | Only syllabus topics are allowed; duplicates are merged; the student can edit; mapping confidence is shown |
-| Quiz | Top sections per topic, plus sections on the subtopics the student got wrong | Questions from those chunks only, each with `chunkId` and a verbatim quote | **Validation:** rejects a question if its citation wasn't retrieved, its quote isn't in the chunk, its answer isn't supported, its options are duplicates or "all of the above", or its key is invalid |
-| Evaluation | The cited chunk's text is sent with each answer | Rubric scoring and an explanation of each mistake | Objective scores come from the answer key; the model can't change them; a keyword fallback runs if the AI is down |
-| Gap report | n/a | Reason and next step per topic | Level, mastery, confidence and priority are computed in code |
-| Plan | The topic's best sections become reading tasks | Concrete tasks and success criteria | Order and minutes come from the scheduler, which never exceeds the student's available time |
-| Assistant | Top-k sections. Below a score threshold the app answers "not in your material" **without calling the model** | Streamed explanation citing [n] | The prompt forbids outside knowledge |
-
-### Diagnosis model
-
-All tunable numbers are in `lib/config.ts`.
-
-- `mastery = Σ recency × difficulty × type × score / Σ recency × difficulty × type`
-  - recency: each older attempt counts half as much
-  - difficulty: easy 0.8, medium 1, hard 1.3
-  - type: true/false 0.7 … short answer and numerical 1.2
-- **Strong** ≥ 80%, **Medium** 50–80%, **Weak** < 50%. **Not assessed** means no answers yet; such a topic is never labelled weak.
-- **Confidence:** low with fewer than 2 questions, medium with 2–3, high with 4 or more. Low-confidence topics are flagged for re-assessment.
-- `priority = 0.55 × weakness + 0.25 × exam importance + 0.10 × repeated misconceptions + 0.10 × being a prerequisite of unfinished topics`
-- This is a transparent heuristic, not a validated psychometric score. Bayesian Knowledge Tracing or IRT could replace `lib/analysis.ts` later.
-
----
-
-## Spec compliance (master build prompt)
-
-**Implemented:** all 10 agents, the core loop, every listed page and the RAG pipeline (heading-aware chunking with overlap, page preservation, topic-filtered retrieval, citation validation). Also:
-- Zod validation of inputs and AI outputs
-- six question types, with difficulty, marks, learning objective and misconception tags
-- deterministic scoring and rubric scoring
-- the "not assessed" state and confidence levels
-- misconception analysis and evidence with citations
-- exam date and available-time planning, priority order, success criteria, spaced review and a follow-up assessment
-- an editable topic hierarchy with prerequisites
-- the document status lifecycle and duplicate detection
-- agent execution logs
-- tests for the deterministic core
-
-**Deliberately different from the suggested stack.** We followed the hackathon brief, which recommends the Vercel AI SDK and Groq, and kept deployment to a single API key:
-
-| Spec | This build | Why / upgrade path |
+| Page | Route | Description |
 |---|---|---|
-| Gemini Flash + Gemini Embedding + Qdrant (dense + sparse + RRF) | Groq (`openai/gpt-oss-120b`) + BM25 lexical retrieval | Groq has no embeddings API. BM25 needs no extra key, is explainable and suits term-heavy exam text. `lib/retrieval.ts` is the only file to change to add Qdrant hybrid search |
-| Supabase Postgres + Auth + Storage + RLS | Browser IndexedDB per account | Free to run and no setup for judges. Every read and write goes through `loadData` / `saveData` in `lib/store.ts`, so it can be swapped for Supabase |
-| Google login, teacher onboarding | Email/password + demo account | Needs a real auth provider (Supabase Auth) |
-| Inngest background jobs | Ingestion runs in the browser; AI calls are short server routes (≤ 60 s) | Add when ingestion moves server-side |
-| Next.js 16, Tailwind, shadcn/ui, Recharts, Bun, Vitest/Playwright | Next.js 15, hand-written CSS and SVG charts, npm, Node assert tests | Fewer dependencies to break before the deadline |
+| **Landing** | `/` | Problem overview, core loop explanation, interactive features, sample gap report. |
+| **Authentication** | `/login` | Supabase Auth login, pre-confirmed registration (bypasses email rate limits), and 1-click judge demo. |
+| **Dashboard** | `/dashboard` | Overall mastery score, breakdown of assessed topics, next upcoming revision tasks, and attempt history. |
+| **Materials** | `/materials` | Multi-format uploader (PDF, TXT, MD) or text paste. In-browser PDF extraction (`unpdf`), SHA-256 duplicate suppression, and status tracking (*Uploaded → Processing → Extracting → Analyzed → Chunking → Embedding → Indexing → Ready*). |
+| **Syllabus Map** | `/topics` | Hierarchical topic tree color-coded by mastery (🔴 Weak < 50%, 🟡 Medium 50–80%, 🟢 Strong ≥ 80%, ⚪ Not Assessed). Supports editing topics, objectives, and prerequisites, plus past-paper question mappings. |
+| **Diagnostic Quiz** | `/quiz` | Multi-format assessment (MCQ, multi-select, true/false, fill-in-the-blank, short answer, numerical). Each question cites source pages with quote verification and optional confidence ratings. |
+| **Gap Report** | `/report` | Diagnostic overview: mastery breakdown, recurring misconception detection, citation-backed evidence table, AI-generated improvement advice. |
+| **Revision Plan** | `/plan` | Day-by-day revision schedule with priority indicators, study minutes, success criteria, and completion checkboxes. Features an exam date calendar restricted to the current month from today onwards. |
+| **Learning Assistant** | `/explain` | Grounded RAG assistant restricted to the student's material with citation markers `[n]`. Refuses outside queries to prevent hallucinations. |
+| **Teacher Hub** | `/teacher` | Cohort-level performance monitoring, class assignment tracking, and collective misconception analysis. |
+| **Manage Students** | `/admin/students` | Admin dashboard for user accounts. View study progress, create pre-confirmed accounts, adjust roles (`student`, `teacher`, `admin`), and delete users. |
+| **Observability** | `/admin` | System health monitoring, API latencies, AI provider fallback metrics, and Qdrant vector status. |
+| **Agent Activity** | `/agents` | Complete execution log of all 10 agents with input/output payloads, run durations, and status badges. |
 
 ---
 
-## Run locally
+## The 10 Specialized Agents
 
+The application coordinates 10 deterministic and LLM-powered agents into a unified, reproducible workflow:
+
+| # | Agent | Mode | Implementation | Responsibility |
+|---|---|---|---|---|
+| **1** | **Document Ingestion** | Deterministic Code | `lib/ingest-server.ts`, `lib/chunk.ts`, `api/parse` | Heading-aware chunking, page retention, content hashing, type detection, and duplicate suppression. |
+| **2** | **Syllabus Mapping** | LLM + Validation | `app/api/topic-map/route.ts` | Extracts topic hierarchies, learning objectives, and prerequisites from uploaded syllabus documents. |
+| **3** | **Knowledge Retrieval** | Dense + Lexical Hybrid | `lib/vector/qdrant.ts`, `lib/retrieval.ts`, `lib/bm25.ts` | Tenant-isolated vector search via Qdrant Cloud combined with BM25 keyword matching. |
+| **4** | **Past Paper Analysis** | Code + Parser | `lib/retrieval.ts` | Extracts exam questions, marks, difficulties, and computes mapping confidence against syllabus topics. |
+| **5** | **Diagnostic Question Gen** | LLM + Schema Guard | `app/api/quiz/route.ts` | Produces 6 question formats with verified citations and grounded quotes. |
+| **6** | **Answer Evaluation** | Code + LLM | `app/api/evaluate/route.ts`, `lib/analysis.ts` | Objective scoring via answer keys; subjective short-answer rubric evaluation with misconception identification. |
+| **7** | **Knowledge Gap Diagnosis** | Code + LLM | `app/api/gap-analysis/route.ts`, `lib/analysis.ts` | Computes weighted mastery scores, confidence ratings, priority rankings, and qualitative recommendations. |
+| **8** | **Revision Planning** | Code + LLM | `app/api/plan/route.ts`, `lib/planner.ts` | Deterministic time scheduler combined with LLM-generated revision tasks, study tips, and success criteria. |
+| **9** | **Progress Monitoring** | Deterministic Code | `lib/workflows.ts` | Tracks longitudinal progress across quiz attempts, detects recurring misconceptions, and triggers plan rebuilds. |
+| **10** | **Learning Assistant** | Grounded LLM Stream | `app/api/explain/route.ts` | Streams conversational explanations with citations, strictly bounded to retrieved context. |
+
+---
+
+## Technology Stack
+
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack, Serverless API Routes)
+- **UI Library**: [React 19](https://react.dev/), custom modern CSS variables, accessible components
+- **Primary AI**: [Google Gemini 3.5 Flash](https://ai.google.dev/) (`gemini-3.5-flash`)
+- **Fallback AI**: [Groq](https://groq.com/) (`openai/gpt-oss-120b`) via Vercel AI SDK
+- **Embeddings**: Google Gemini (`gemini-embedding-001`, 768 dimensions)
+- **Vector Database**: [Qdrant Cloud](https://qdrant.tech/) with user/tenant isolation filters
+- **Relational DB & Auth**: [Supabase](https://supabase.com/) (PostgreSQL, Supabase Auth, Storage, Row Level Security)
+- **Background Workflows**: [Inngest](https://www.inngest.com/) durable serverless functions
+- **Testing**: [Vitest 5.1](https://vitest.dev/) & [TSX](https://github.com/privatenumber/tsx) (52 unit, integration, e2e, and admin tests)
+
+---
+
+## Local Development Setup
+
+### 1. Prerequisites
+- **Node.js**: `v18.18` or newer (Node 20+ recommended)
+- **npm** or **pnpm**
+
+### 2. Installation
 ```bash
+git clone https://github.com/Rajeswaril4/GapFinder-AI.git
+cd GapFinder-AI
 npm install
-cp .env.example .env.local     # paste your Groq key into .env.local
-npm test                       # core logic tests (no key needed)
-npm run build
-npm run dev                    # http://localhost:3000
 ```
 
-Get a free Groq key at <https://console.groq.com/keys>. Never commit `.env.local`. If you hit free-tier rate limits, set `GROQ_MODEL=openai/gpt-oss-20b`.
+### 3. Environment Configuration
+Create a `.env.local` or `.env` file in the root directory:
 
-## Deploy to Vercel
+```env
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
+SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
 
-1. Push this folder to a GitHub repository.
-2. Import the repository at <https://vercel.com/new>. The framework is detected as Next.js.
-3. Add the environment variable `GROQ_API_KEY`. `GROQ_MODEL` is optional.
-4. Deploy, open the URL, click **Try the demo**, then open **How it works** and check that AI status shows **Connected**.
+# AI Configuration (Primary: Google Gemini)
+GEMINI_API_KEY="your-google-ai-studio-gemini-key"
+GEMINI_MODEL="gemini-3.5-flash"
 
-## Judge walkthrough (3 minutes)
+# AI Configuration (Fallback: Groq)
+GROQ_API_KEY="your-groq-api-key"
+GROQ_MODEL="openai/gpt-oss-120b"
 
-1. **Landing:** shows the problem and a sample diagnosis. Click **Try the demo** and continue with the demo account.
-2. **Dashboard:** two past attempts, 4 of 5 topics improved, upcoming tasks.
-3. **Gap report:** Excretion is 🔴 weak with a *recurring* misconception ("thinks urea is reabsorbed", seen twice). Nutrition improved from weak to medium. Open the evidence table to see the cited questions.
-4. **Syllabus map:** click a topic for objectives, misconceptions and sources. Edit a topic. Check the past-paper analysis table.
-5. **Revision plan:** set an exam date. Excretion comes first, with priority labels, reading sections, practice questions, success criteria and a follow-up assessment.
-6. **Diagnostic quiz:** generate 8 questions, step through the mixed formats, rate your confidence and submit. The report, plan and agent log all update.
-7. **Learning assistant:** ask "what is photolysis?" The answer cites [1]. Ask about something outside the notes and the app refuses.
-8. **Agent activity:** every agent run, with inputs, outputs and timings.
+# Vector Database (Qdrant Cloud)
+QDRANT_URL="https://your-cluster.qdrant.tech:6333"
+QDRANT_API_KEY="your-qdrant-api-key"
+QDRANT_COLLECTION="gapfinder_materials"
+```
 
-## Project structure
+### 4. Run Test Suite
+Verify that all 52 unit, integration, admin, and core tests pass:
+```bash
+npm test
+```
+
+### 5. Start Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## Deployment to Vercel
+
+### Step 1: Push Repository to GitHub
+```bash
+git add .
+git commit -m "feat: complete GapFinder AI setup"
+git push origin main
+```
+
+### Step 2: Configure Vercel Project
+1. Import your repository into **[Vercel](https://vercel.com/new)**.
+2. In **Project Settings → Environment Variables**, add the following variables:
+
+| Variable Name | Environment | Description |
+| :--- | :--- | :--- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Production, Preview, Dev | Supabase project URL (`https://<id>.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Production, Preview, Dev | Supabase public anonymous API key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Production, Preview, Dev | Supabase secret service role key (backend only) |
+| `GEMINI_API_KEY` | Production, Preview, Dev | Google Gemini API key from AI Studio |
+| `GEMINI_MODEL` | Production, Preview, Dev | `gemini-3.5-flash` |
+| `GROQ_API_KEY` | Production, Preview, Dev | Groq API key for high-speed fallback |
+| `GROQ_MODEL` | Production, Preview, Dev | `openai/gpt-oss-120b` |
+| `QDRANT_URL` | Production, Preview, Dev | Qdrant Cloud cluster endpoint |
+| `QDRANT_API_KEY` | Production, Preview, Dev | Qdrant API key |
+| `QDRANT_COLLECTION` | Production, Preview, Dev | `gapfinder_materials` |
+
+### Step 3: Configure Supabase Authentication
+1. In the **Supabase Dashboard → Authentication → Providers → Email**:
+   - Toggle **OFF** `Confirm email` (this permits instant student registration and avoids Supabase's 3-email-per-hour rate limit).
+2. In **Authentication → URL Configuration → Redirect URLs**:
+   - Add: `https://<your-project>.vercel.app/**`
+
+---
+
+## Default Accounts for Testing
+
+| Role | Email | Password | Access Details |
+|---|---|---|---|
+| **Judge / Demo** | `demo@gapfinder.ai` | `demo1234` | Pre-loaded with Class 10 Biology material, past quizzes, a gap report, and revision plan. |
+| **Administrator** | `thamdu2004@gmail.com` | `Admin@123456` | Access to the **Manage Students** dashboard (`/admin/students`) to view and edit student accounts. |
+| **New Student** | *(Self-register)* | *(Min 6 chars)* | Instant account creation via `/login` with pre-confirmed session. |
+
+---
+
+## Judge Walkthrough (3 Minutes)
+
+1. **Sign In**: Navigate to `/login`. Click **Continue with demo account** to load pre-seeded Class 10 Biology diagnostic data.
+2. **Review Dashboard** (`/dashboard`): Examine the overall mastery score, the 4 assessed topics, recent quiz scores, and upcoming revision tasks.
+3. **Inspect Gap Report** (`/report`): Notice that *Excretion* is flagged as 🔴 **Weak** with a recurring misconception (*"thinks urea is reabsorbed in loop of Henle"*). Click the evidence table to see cited test questions.
+4. **Explore Syllabus Map** (`/topics`): View the colored topic tree, objectives, and prerequisites. Review the past-paper weight analysis.
+5. **Check Revision Plan** (`/plan`): The plan prioritizes weak prerequisite topics first. Click the **Exam date** picker—notice it is restricted to dates from **today through the end of the current month**.
+6. **Take Diagnostic Quiz** (`/quiz`): Answer mixed-format questions. Each question is grounded in uploaded source text with verified citations. Submit to observe the gap report and revision plan update automatically.
+7. **Ask Learning Assistant** (`/explain`): Ask a question (e.g. *"What is photolysis?"*). The assistant replies with bracketed citations `[n]`. Inquire about an unrelated topic (e.g. *"Quantum mechanics"*); the assistant politely refuses based on material boundaries.
+8. **Admin Students Dashboard** (`/admin/students`): Log out and log in as `thamdu2004@gmail.com` / `Admin@123456`. View student mastery metrics, edit student roles, or register new students.
+9. **Observability & Agents** (`/admin`, `/agents`): Review live system health, latency breakdowns, and step-by-step agent execution logs.
+
+---
+
+## Repository Structure
 
 ```
-app/page.tsx              landing page
-app/login/                login, register, demo
-app/(app)/…               dashboard, materials, topics, quiz, report, plan, explain, agents, how-it-works
-app/api/…                 parse, topic-map, quiz, evaluate, gap-analysis, plan, explain, health
-lib/config.ts             all thresholds and weights
-lib/ingest.ts, chunk.ts   Agent 1
-lib/bm25.ts, retrieval.ts Agents 3 + 4
-lib/analysis.ts           Agents 6 (deterministic) + 7 + 9
-lib/planner.ts            Agent 8 scheduler
-lib/workflows.ts          orchestrator + agent run log
-lib/llm.ts                Groq model, JSON generation + Zod validation
-lib/store.ts, seed.ts     persistence + demo data (original sample material)
-tests/core.test.ts        tests for the deterministic core
+├── app/
+│   ├── (app)/                 # Protected application routes
+│   │   ├── admin/             # Observability & Manage students (/admin/students)
+│   │   ├── agents/            # 10-Agent execution logs
+│   │   ├── dashboard/         # Student diagnostic overview
+│   │   ├── explain/           # Grounded RAG learning assistant
+│   │   ├── materials/         # Document ingestion & management
+│   │   ├── plan/              # Personalised revision planner
+│   │   ├── quiz/              # Diagnostic testing interface
+│   │   ├── report/            # Knowledge gap report & misconceptions
+│   │   ├── teacher/           # Teacher hub & class analytics
+│   │   └── topics/            # Syllabus map & past-paper analysis
+│   ├── api/                   # Serverless API routes
+│   │   ├── admin/students/    # Admin user management endpoints
+│   │   ├── auth/register/     # Rate-limit-proof registration endpoint
+│   │   ├── evaluate/          # Answer evaluation & misconception tagging
+│   │   ├── explain/           # RAG explanation streaming
+│   │   ├── gap-analysis/      # Diagnosis & mastery computation
+│   │   ├── health/            # Health check & provider status
+│   │   ├── ingest/            # Serverless document processing
+│   │   ├── inngest/           # Inngest durable job handler
+│   │   ├── parse/             # Server-side PDF/text parser
+│   │   ├── plan/              # Revision task generator
+│   │   ├── quiz/              # Diagnostic question generation
+│   │   └── topic-map/         # Syllabus hierarchy extraction
+│   ├── login/                 # Login & registration page
+│   └── layout.tsx             # Root application layout
+├── components/                # Reusable UI components & AppProvider
+├── lib/
+│   ├── ai/                    # Gemini API & embeddings client
+│   ├── inngest/               # Background durable functions
+│   ├── supabase/              # Browser and server Supabase clients
+│   ├── vector/                # Qdrant client, collections & queries
+│   ├── admin-server.ts        # Admin authorization & server helpers
+│   ├── analysis.ts            # Scoring formulas & mastery heuristics
+│   ├── auth.ts                # Unified authentication layer (Supabase + local)
+│   ├── bm25.ts                # BM25 lexical retrieval engine
+│   ├── chunk.ts               # Heading-aware document chunker
+│   ├── config.ts              # Tunable thresholds, weights & budgets
+│   ├── ingest-server.ts       # Server-side document processing pipeline
+│   ├── llm.ts                 # Groq fallback client & schema validation
+│   ├── planner.ts             # Deterministic revision plan scheduler
+│   ├── retrieval.ts           # Hybrid retriever (Qdrant + BM25)
+│   ├── store.ts               # Offline IndexedDB persistence
+│   └── workflows.ts           # Agent orchestrator & run logger
+├── supabase/migrations/       # PostgreSQL schema & RLS migrations
+└── tests/                     # 52 unit, integration, e2e, and admin tests
 ```
+
+---
+
+## License
+
+MIT License. Built for **Hackathon PS 2026**.
