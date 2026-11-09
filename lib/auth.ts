@@ -182,8 +182,6 @@ export async function signInWithGoogle(role: UserRole = "student"): Promise<void
       queryParams: {
         access_type: "offline",
         prompt: "consent",
-      },
-      data: {
         role,
       },
     },

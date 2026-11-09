@@ -3,7 +3,18 @@
 
 export type MaterialKind = "syllabus" | "notes" | "past_paper";
 /** Document lifecycle shown in the UI: Uploaded → Processing → Analyzed → Indexed → Ready */
-export type DocStatus = "uploaded" | "processing" | "analyzed" | "indexed" | "ready" | "error";
+export type DocStatus =
+  | "uploaded"
+  | "processing"
+  | "extracting"
+  | "analyzed"
+  | "chunking"
+  | "embedding"
+  | "indexing"
+  | "indexed"
+  | "ready"
+  | "failed"
+  | "error";
 
 export interface Material {
   id: string;

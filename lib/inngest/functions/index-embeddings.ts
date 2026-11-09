@@ -20,7 +20,7 @@ export const indexEmbeddings = inngest.createFunction(
     });
 
     await step.run("upsert-to-qdrant", async () => {
-      const points = chunkIds.map((id, idx) => ({
+      const points = (chunkIds as string[]).map((id: string, idx: number) => ({
         id,
         vector: embeddings[idx],
         payload: {

@@ -139,17 +139,29 @@ export async function searchQdrant(opts: {
   }
 
   try {
-    const results = await client.search(MATERIALS_COLLECTION, {
-      vector: opts.queryVector,
-      limit: opts.topK ?? 10,
-      score_threshold: opts.scoreThreshold ?? 0.0,
-      filter: {
-        must: mustFilters,
-      },
-      with_payload: true,
-    });
+    const response = typeof client.query === "function"
+      ? await client.query(MATERIALS_COLLECTION, {
+          query: opts.queryVector,
+          limit: opts.topK ?? 10,
+          score_threshold: opts.scoreThreshold ?? 0.0,
+          filter: {
+            must: mustFilters,
+          },
+          with_payload: true,
+        })
+      : await (client as unknown as { search: Function }).search(MATERIALS_COLLECTION, {
+          vector: opts.queryVector,
+          limit: opts.topK ?? 10,
+          score_threshold: opts.scoreThreshold ?? 0.0,
+          filter: {
+            must: mustFilters,
+          },
+          with_payload: true,
+        });
 
-    return results.map((r) => {
+    const points = Array.isArray(response) ? response : (response?.points || []);
+
+    return points.map((r: { id: string | number; score: number; payload?: unknown }) => {
       const p = (r.payload || {}) as unknown as ChunkPayload;
       return {
         chunkId: p.chunk_id || String(r.id),
