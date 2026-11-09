@@ -31,7 +31,7 @@ Upload Material → Syllabus Map → Diagnostic Quiz → Evaluation → Gap Repo
 | Page | Route | Description |
 |---|---|---|
 | **Landing** | `/` | Problem overview, core loop explanation, interactive features, sample gap report. |
-| **Authentication** | `/login` | Supabase Auth login, pre-confirmed registration (bypasses email rate limits), and 1-click judge demo. |
+| **Authentication** | `/login` | Supabase Auth login and pre-confirmed registration (bypasses email rate limits). |
 | **Dashboard** | `/dashboard` | Overall mastery score, breakdown of assessed topics, next upcoming revision tasks, and attempt history. |
 | **Materials** | `/materials` | Multi-format uploader (PDF, TXT, MD) or text paste. In-browser PDF extraction (`unpdf`), SHA-256 duplicate suppression, and status tracking (*Uploaded → Processing → Extracting → Analyzed → Chunking → Embedding → Indexing → Ready*). |
 | **Syllabus Map** | `/topics` | Hierarchical topic tree color-coded by mastery (🔴 Weak < 50%, 🟡 Medium 50–80%, 🟢 Strong ≥ 80%, ⚪ Not Assessed). Supports editing topics, objectives, and prerequisites, plus past-paper question mappings. |
@@ -167,15 +167,14 @@ git push origin main
 
 | Role | Email | Password | Access Details |
 |---|---|---|---|
-| **Judge / Demo** | `demo@gapfinder.ai` | `demo1234` | Pre-loaded with Class 10 Biology material, past quizzes, a gap report, and revision plan. |
 | **Administrator** | `thamdu2004@gmail.com` | `Admin@123456` | Access to the **Manage Students** dashboard (`/admin/students`) to view and edit student accounts. |
-| **New Student** | *(Self-register)* | *(Min 6 chars)* | Instant account creation via `/login` with pre-confirmed session. |
+| **Student** | *(Self-register)* | *(Min 6 chars)* | Instant account creation via `/login` with pre-confirmed session. |
 
 ---
 
-## Judge Walkthrough (3 Minutes)
+## Evaluation Walkthrough (3 Minutes)
 
-1. **Sign In**: Navigate to `/login`. Click **Continue with demo account** to load pre-seeded Class 10 Biology diagnostic data.
+1. **Sign In**: Navigate to `/login` to sign in with an existing account or register a new account in seconds.
 2. **Review Dashboard** (`/dashboard`): Examine the overall mastery score, the 4 assessed topics, recent quiz scores, and upcoming revision tasks.
 3. **Inspect Gap Report** (`/report`): Notice that *Excretion* is flagged as 🔴 **Weak** with a recurring misconception (*"thinks urea is reabsorbed in loop of Henle"*). Click the evidence table to see cited test questions.
 4. **Explore Syllabus Map** (`/topics`): View the colored topic tree, objectives, and prerequisites. Review the past-paper weight analysis.
