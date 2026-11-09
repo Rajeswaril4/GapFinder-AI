@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useApp } from "@/components/AppProvider";
 import { Alert, Button, Empty, LevelBadge, PageHead, PriorityBadge, when } from "@/components/ui";
 import type { PlanBlock } from "@/lib/types";
@@ -12,12 +12,42 @@ const KIND_LABEL: Record<PlanBlock["kind"], string> = { learn: "Concept revision
 export default function PlanPage() {
   const { data, update } = useApp();
   const report = data.reports[data.reports.length - 1];
+
+  // Calendar constraints: strictly from today through the last day of the current month
+  const { todayStr, endOfMonthStr } = useMemo(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const end = `${lastDay.getFullYear()}-${pad(lastDay.getMonth() + 1)}-${pad(lastDay.getDate())}`;
+    return { todayStr: today, endOfMonthStr: end };
+  }, []);
+
   const [days, setDays] = useState(data.planPrefs.days);
   const [hours, setHours] = useState(data.planPrefs.hoursPerDay);
-  const [examDate, setExamDate] = useState(data.planPrefs.examDate ?? "");
+  const [examDate, setExamDate] = useState(() => {
+    const saved = data.planPrefs.examDate ?? "";
+    if (saved && (saved < todayStr || saved > endOfMonthStr)) return "";
+    return saved;
+  });
   const [busy, setBusy] = useState(false);
   const [warn, setWarn] = useState("");
   const plan = data.plan;
+
+  function handleExamDateChange(val: string) {
+    if (!val) {
+      setExamDate("");
+      return;
+    }
+    // Clamp to valid range: not before today, not outside current month
+    if (val < todayStr) {
+      setExamDate(todayStr);
+    } else if (val > endOfMonthStr) {
+      setExamDate(endOfMonthStr);
+    } else {
+      setExamDate(val);
+    }
+  }
 
   if (!report)
     return (
@@ -30,8 +60,9 @@ export default function PlanPage() {
     );
 
   async function rebuild() {
+    const calculatedDays = examDate ? daysUntil(examDate) : days;
     const prefs = {
-      days: Math.max(1, Math.min(30, Math.round(days))),
+      days: Math.max(1, Math.min(30, Math.round(calculatedDays))),
       hoursPerDay: Math.max(0.5, Math.min(10, hours)),
       examDate: examDate || undefined,
     };
@@ -68,9 +99,34 @@ export default function PlanPage() {
 
       <div className="card">
         <div className="row" style={{ alignItems: "flex-end" }}>
-          <div style={{ width: 170 }}>
-            <label>Exam date (optional)</label>
-            <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
+          <div style={{ width: 185 }}>
+            <div className="row between" style={{ marginBottom: 4 }}>
+              <label style={{ margin: 0 }}>Exam date (this month)</label>
+              {examDate && (
+                <button
+                  type="button"
+                  onClick={() => setExamDate("")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--muted)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                  title="Clear exam date"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <input
+              type="date"
+              min={todayStr}
+              max={endOfMonthStr}
+              value={examDate}
+              onChange={(e) => handleExamDateChange(e.target.value)}
+            />
           </div>
           <div style={{ width: 130 }}>
             <label>{examDate ? "Days (from date)" : "Days to plan"}</label>
