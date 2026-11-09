@@ -47,17 +47,28 @@ export function withRuns(data: StudentData, log: RunLog): StudentData {
   return { ...data, agentRuns: [...[...log].reverse(), ...(data.agentRuns ?? [])].slice(0, 150) };
 }
 
+/** PDF text often comes back as one long line; put line breaks back before headings and question numbers. */
+function restoreLines(page: string): string {
+  if (page.split("\n").length > 4 || page.length < 300) return page;
+  return page
+    .replace(/\s+(?=(?:Chapter|Unit|Section|Module)\s+\d+)/g, "\n")
+    .replace(/\s+(?=\d+(?:\.\d+)+\s+[A-Z])/g, "\n")
+    .replace(/\s+(?=Q(?:uestion)?\s*\.?\s*\d+[.):]?\s)/g, "\n")
+    .replace(/([.?!])\s+(?=[A-Z][a-z]+(?:\s[A-Z][a-z]+){0,4}\n)/g, "$1\n");
+}
+
+/** Reads the file in the browser, so large PDFs never hit Vercel's ~4.5 MB request limit. */
 export async function parseFile(file: File): Promise<{ name: string; pages: string[] }> {
-  if (/\.(txt|md)$/i.test(file.name) || file.type.startsWith("text/")) {
-    return { name: file.name.replace(/\.(txt|md)$/i, ""), pages: [await file.text()] };
-  }
-  if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") throw new Error("Unsupported format. Upload a PDF, .txt or .md file.");
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/api/parse", { method: "POST", body: fd });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error || "Could not read file");
-  return json;
+  const name = file.name.replace(/\.(pdf|txt|md)$/i, "");
+  if (/\.(txt|md)$/i.test(file.name) || file.type.startsWith("text/")) return { name, pages: [await file.text()] };
+  if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf")
+    throw new Error("Unsupported format. Upload a PDF, .txt or .md file.");
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
+  const { text } = await extractText(pdf, { mergePages: false });
+  const pages = (Array.isArray(text) ? text : [text]).map((p) => restoreLines(String(p ?? "")));
+  if (!pages.join("").trim()) throw new Error("No selectable text found (scanned PDF?). Paste the text instead.");
+  return { name, pages };
 }
 
 // ---------------------------------------------------------------- Agents 1, 3, 4: ingestion, retrieval, past papers
@@ -105,7 +116,8 @@ export async function uploadMaterialFile(
   userId = "demo_student",
   log: RunLog = []
 ): Promise<{ data: StudentData; duplicateOf?: string; warnings: string[] }> {
-  try {
+  // Files over ~4 MB can't be sent to Vercel functions (HTTP 413), so they are read in the browser instead.
+  if (file.size < 4_000_000) try {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("kind", kind);
