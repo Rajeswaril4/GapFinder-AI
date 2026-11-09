@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/components/AppProvider";
 import { Alert, Button } from "@/components/ui";
-import { DEMO_EMAIL, DEMO_PASSWORD } from "@/lib/seed";
 
 export default function LoginPage() {
   const { ready, user, signIn, signUp } = useApp();
@@ -19,13 +18,12 @@ export default function LoginPage() {
     if (ready && user) router.replace("/dashboard");
   }, [ready, user, router]);
 
-  async function submit(e?: React.FormEvent, demo = false) {
+  async function submit(e?: React.FormEvent) {
     e?.preventDefault();
     setError("");
     setBusy(true);
     try {
-      if (demo) await signIn(DEMO_EMAIL, DEMO_PASSWORD);
-      else if (mode === "login") await signIn(email, password);
+      if (mode === "login") await signIn(email, password);
       else await signUp(name, email, password);
       router.replace("/dashboard");
     } catch (err) {
@@ -80,25 +78,6 @@ export default function LoginPage() {
               {mode === "login" ? "Log in" : "Create account"}
             </Button>
           </form>
-
-          <div className="spacer" />
-          <div className="alert info">
-            <b>Demo login for judges</b>
-            <div style={{ fontSize: 13.5, marginTop: 4 }}>
-              Email: <code>{DEMO_EMAIL}</code>
-              <br />
-              Password: <code>{DEMO_PASSWORD}</code>
-              <br />
-              Pre-loaded with Class 10 Biology material, 2 quiz attempts, a gap report and a plan.
-            </div>
-            <div className="spacer" />
-            <Button type="button" variant="secondary" onClick={() => submit(undefined, true)} loading={busy && !email}>
-              Continue with demo account
-            </Button>
-          </div>
-          <p className="muted" style={{ fontSize: 12.5, marginTop: 12 }}>
-            Accounts and study data are saved in this browser (IndexedDB). No external database required.
-          </p>
         </div>
       </section>
     </div>

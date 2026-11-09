@@ -29,7 +29,7 @@ const SAMPLE = [
 
 export default function Landing() {
   const { ready, user } = useApp();
-  const cta = ready && user ? { href: "/dashboard", label: "Open my dashboard →" } : { href: "/login", label: "Try the demo →" };
+  const cta = ready && user ? { href: "/dashboard", label: "Open my dashboard →" } : { href: "/login", label: "Get started →" };
   return (
     <div className="landing">
       <header className="land-nav">
@@ -112,7 +112,7 @@ export default function Landing() {
 
       <section className="land-section" style={{ textAlign: "center" }}>
         <h2>Ready to find your gaps?</h2>
-        <p className="muted">Use the demo account — it comes with sample material, two quiz attempts, a gap report and a plan.</p>
+        <p className="muted">Upload your syllabus and notes, diagnose knowledge gaps, and follow a personalised plan.</p>
         <Link className="btn" href={cta.href}>{cta.label}</Link>
       </section>
       <footer className="muted" style={{ textAlign: "center", padding: 24, fontSize: 13 }}>
