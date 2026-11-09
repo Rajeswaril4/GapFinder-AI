@@ -119,6 +119,46 @@ export async function signUpWithEmail(
 ): Promise<AuthUserProfile> {
   const supabase = getSupabaseBrowserClient();
 
+  // 1. In browser, try server-side registration with pre-confirmed email (bypasses Supabase email rate limits)
+  if (typeof window !== "undefined") {
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, fullName, role }),
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && json.id) {
+        // User created and confirmed immediately; sign in to establish browser session & cookies
+        if (supabase) {
+          const { error: signInErr } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (signInErr) {
+            console.warn("[signUpWithEmail] Auto-login warning:", signInErr.message);
+          }
+        }
+        return {
+          id: json.id,
+          email: json.email || email,
+          fullName: json.fullName || fullName,
+          role: (json.role as UserRole) || role,
+          isDemo: false,
+        };
+      } else if (res.status === 409) {
+        throw new Error(json.error || "An account with this email already exists.");
+      }
+    } catch (err) {
+      if ((err as Error).message.includes("already exists")) {
+        throw err;
+      }
+      console.warn("[signUpWithEmail] Server registration fallback:", err);
+    }
+  }
+
+  // 2. Fallback to direct client-side Supabase sign-up
   if (supabase) {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -132,6 +172,11 @@ export async function signUpWithEmail(
     });
 
     if (error) {
+      if (error.message.toLowerCase().includes("rate limit")) {
+        throw new Error(
+          "Supabase email rate limit exceeded. Disable 'Confirm email' in Supabase Dashboard → Authentication → Providers → Email, or wait a while before retrying."
+        );
+      }
       throw new Error(error.message);
     }
 
