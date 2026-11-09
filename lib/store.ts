@@ -4,6 +4,7 @@
 import type { StudentData, User } from "./types";
 import { buildDemoData, DEMO_EMAIL, DEMO_PASSWORD } from "./seed";
 import SHA256 from "crypto-js/sha256";
+import { getSupabaseBrowserClient } from "./supabase/client";
 
 
 const USERS_KEY = "gf_users";
@@ -76,6 +77,43 @@ function openDb(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
+
+// ---------- Supabase sync (best-effort; IndexedDB stays the fast local cache) ----------
+// Table: public.student_state(user_id uuid pk, data jsonb, updated_at timestamptz) with RLS.
+async function remote(email: string) {
+  try {
+    if (email.toLowerCase() === DEMO_EMAIL) return null; // demo stays local
+    const sb = getSupabaseBrowserClient();
+    if (!sb) return null;
+    const { data } = await sb.auth.getSession();
+    const user = data.session?.user;
+    return user ? { sb, uid: user.id } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function pullRemote(email: string): Promise<any | null> {
+  const r = await remote(email);
+  if (!r) return null;
+  try {
+    const { data } = await r.sb.from("student_state").select("data").eq("user_id", r.uid).maybeSingle();
+    return data?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function pushRemote(email: string, d: StudentData): Promise<void> {
+  const r = await remote(email);
+  if (!r) return;
+  try {
+    await r.sb.from("student_state").upsert({ user_id: r.uid, data: d, updated_at: new Date().toISOString() });
+  } catch {
+    /* offline or table missing: local copy still works */
+  }
+}
+
 /** Fills fields added in later versions so older saved data keeps working. */
 function normalize(d: any): StudentData {
   return {
@@ -99,19 +137,25 @@ export async function loadData(email: string): Promise<StudentData | null> {
 }
 
 async function loadRaw(email: string): Promise<any | null> {
+  let local: any | null = null;
   try {
     const db = await openDb();
-    return await new Promise((resolve, reject) => {
+    local = await new Promise((resolve, reject) => {
       const r = db.transaction(STORE, "readonly").objectStore(STORE).get(email.toLowerCase());
       r.onsuccess = () => resolve((r.result as StudentData) ?? null);
       r.onerror = () => reject(r.error);
     });
   } catch {
-    return memoryFallback.get(email.toLowerCase()) ?? null;
+    local = memoryFallback.get(email.toLowerCase()) ?? null;
   }
+  if (local) return local;
+  // new device / cleared browser: restore from Supabase and re-cache locally
+  const cloud = await pullRemote(email);
+  if (cloud) await saveLocal(email, cloud);
+  return cloud;
 }
 
-export async function saveData(email: string, data: StudentData): Promise<void> {
+async function saveLocal(email: string, data: StudentData): Promise<void> {
   memoryFallback.set(email.toLowerCase(), data);
   try {
     const db = await openDb();
@@ -124,6 +168,11 @@ export async function saveData(email: string, data: StudentData): Promise<void> 
   } catch {
     /* keep in memory */
   }
+}
+
+export async function saveData(email: string, data: StudentData): Promise<void> {
+  await saveLocal(email, data);
+  void pushRemote(email, data); // fire-and-forget so the UI never waits on the network
 }
 
 // ---------- accounts ----------
