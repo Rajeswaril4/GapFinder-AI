@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { getAuthUser } from "@/lib/auth";
 import { useApp } from "@/components/AppProvider";
 import { Button } from "@/components/ui";
 
-const NAV = [
+const NAV: { href: string; label: string; step: string; admin?: boolean }[] = [
   { href: "/dashboard", label: "Dashboard", step: "⌂" },
   { href: "/materials", label: "Materials", step: "1" },
   { href: "/topics", label: "Syllabus map", step: "2" },
@@ -16,6 +17,7 @@ const NAV = [
   { href: "/teacher", label: "Teacher hub", step: "★" },
   { href: "/agents", label: "Agent activity", step: "⚙" },
   { href: "/admin", label: "Observability", step: "📊" },
+  { href: "/admin/students", label: "Manage students", step: "👥", admin: true },
   { href: "/how-it-works", label: "How it works", step: "i" },
 ];
 
@@ -23,6 +25,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { ready, user, data, signOut, resetDemo } = useApp();
   const router = useRouter();
   const path = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (user?.role === "admin") {
+      setIsAdmin(true);
+    } else {
+      getAuthUser().then((u) => setIsAdmin(u?.role === "admin")).catch(() => setIsAdmin(false));
+    }
+  }, [user]);
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
@@ -37,8 +48,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="logo-mark">◎</span> GapFinder AI
         </Link>
         <nav className="nav">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className={path?.startsWith(n.href) ? "active" : ""}>
+          {NAV.filter((n) => !n.admin || isAdmin).map((n) => (
+            <Link key={n.href} href={n.href} className={path === n.href || (n.href !== "/admin" && path?.startsWith(n.href + "/")) ? "active" : ""}>
               <span className="step">{n.step}</span>
               {n.label}
             </Link>

@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { StudentData, User } from "@/lib/types";
 import { emptyData } from "@/lib/types";
 import * as store from "@/lib/store";
+import { signInWithEmail, signUpWithEmail, signOutUser, getAuthUser } from "@/lib/auth";
 import { Retriever } from "@/lib/retrieval";
 
 interface Ctx {
@@ -35,7 +36,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       await store.ensureDemo();
-      await load(store.currentUser());
+      try {
+        const authUser = await getAuthUser();
+        if (authUser && authUser.email !== store.DEMO_EMAIL) {
+          const localUser = store.syncLocalUser({
+            email: authUser.email,
+            name: authUser.fullName,
+            id: authUser.id,
+            role: authUser.role,
+          });
+          await load({
+            ...localUser,
+            id: authUser.id,
+            role: authUser.role,
+          });
+        } else {
+          await load(store.currentUser());
+        }
+      } catch {
+        await load(store.currentUser());
+      }
       setReady(true);
     })();
   }, [load]);
@@ -61,9 +81,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       replace: async (d) => {
         await update(() => d);
       },
-      signIn: async (email, password) => load(await store.login(email, password)),
-      signUp: async (name, email, password) => load(await store.register(name, email, password)),
-      signOut: () => {
+      signIn: async (email, password) => {
+        if (email.toLowerCase() === store.DEMO_EMAIL.toLowerCase()) {
+          const u = await store.login(email, password);
+          await load(u);
+          return;
+        }
+        const authUser = await signInWithEmail(email, password);
+        const localUser = store.syncLocalUser({
+          email: authUser.email,
+          name: authUser.fullName,
+          id: authUser.id,
+          role: authUser.role,
+        });
+        await load({
+          ...localUser,
+          id: authUser.id,
+          role: authUser.role,
+        });
+      },
+      signUp: async (name, email, password) => {
+        const authUser = await signUpWithEmail(email, password, name, "student");
+        const localUser = store.syncLocalUser({
+          email: authUser.email,
+          name: authUser.fullName,
+          id: authUser.id,
+          role: authUser.role,
+        });
+        await load({
+          ...localUser,
+          id: authUser.id,
+          role: authUser.role,
+        });
+      },
+      signOut: async () => {
+        await signOutUser();
         store.logout();
         setUser(null);
         setData(emptyData());
@@ -73,8 +125,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setData(d);
       },
     }),
-    // retriever only needs rebuilding when chunks change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [ready, user, data, update, load]
   );
 

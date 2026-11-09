@@ -44,8 +44,11 @@ export async function GET() {
   return Response.json({
     status: "ok",
     ai: {
-      model: MODEL_ID,
+      primaryProvider: "Google Gemini",
+      primaryModel: process.env.GEMINI_MODEL || "gemini-3.5-flash",
+      fallbackModel: MODEL_ID,
       geminiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
+      groqKeyConfigured: Boolean(process.env.GROQ_API_KEY),
     },
     vectorDb: {
       provider: "Qdrant Cloud",

@@ -57,18 +57,38 @@ function restoreLines(page: string): string {
     .replace(/([.?!])\s+(?=[A-Z][a-z]+(?:\s[A-Z][a-z]+){0,4}\n)/g, "$1\n");
 }
 
-/** Reads the file in the browser, so large PDFs never hit Vercel's ~4.5 MB request limit. */
+/** Reads the file in the browser, with server /api/parse fallback for reliability. */
 export async function parseFile(file: File): Promise<{ name: string; pages: string[] }> {
   const name = file.name.replace(/\.(pdf|txt|md)$/i, "");
   if (/\.(txt|md)$/i.test(file.name) || file.type.startsWith("text/")) return { name, pages: [await file.text()] };
   if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf")
     throw new Error("Unsupported format. Upload a PDF, .txt or .md file.");
-  const { extractText, getDocumentProxy } = await import("unpdf");
-  const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
-  const { text } = await extractText(pdf, { mergePages: false });
-  const pages = (Array.isArray(text) ? text : [text]).map((p) => restoreLines(String(p ?? "")));
-  if (!pages.join("").trim()) throw new Error("No selectable text found (scanned PDF?). Paste the text instead.");
-  return { name, pages };
+
+  // 1. Attempt browser-side unpdf extraction
+  try {
+    const { extractText, getDocumentProxy } = await import("unpdf");
+    const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
+    const { text } = await extractText(pdf, { mergePages: false });
+    const pages = (Array.isArray(text) ? text : [text]).map((p) => restoreLines(String(p ?? "")));
+    if (pages.join("").trim().length > 0) {
+      return { name, pages };
+    }
+  } catch (err) {
+    console.warn("[parseFile] Browser unpdf extraction unavailable, falling back to /api/parse:", err);
+  }
+
+  // 2. Server-side fallback: /api/parse
+  if (file.size > 4.5 * 1024 * 1024) {
+    throw new Error(
+      `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Vercel serverless functions have a 4.5 MB upload limit. Please upload files under 4.5 MB or paste the text in the box below.`
+    );
+  }
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/parse", { method: "POST", body: fd });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "Could not read file");
+  return json;
 }
 
 // ---------------------------------------------------------------- Agents 1, 3, 4: ingestion, retrieval, past papers

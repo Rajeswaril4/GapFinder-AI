@@ -3,6 +3,7 @@
 // (large PDFs don't fit in localStorage's ~5 MB). No external database needed.
 import type { StudentData, User } from "./types";
 import { buildDemoData, DEMO_EMAIL, DEMO_PASSWORD } from "./seed";
+export { DEMO_EMAIL, DEMO_PASSWORD } from "./seed";
 import SHA256 from "crypto-js/sha256";
 import { getSupabaseBrowserClient } from "./supabase/client";
 
@@ -180,15 +181,31 @@ async function sha256(s: string): Promise<string> {
   return SHA256(s).toString();
 }
 
-function readUsers(): User[] {
+export function readUsers(): User[] {
   try {
     return JSON.parse(safeGet(USERS_KEY) || "[]");
   } catch {
     return [];
   }
 }
-function writeUsers(u: User[]) {
+export function writeUsers(u: User[]) {
   safeSet(USERS_KEY, JSON.stringify(u));
+}
+
+export function syncLocalUser(u: { email: string; name: string; id?: string; role?: "student" | "teacher" | "admin" }): User {
+  const users = readUsers();
+  const normalized = u.email.trim().toLowerCase();
+  let existing = users.find((x) => x.email.toLowerCase() === normalized);
+  if (!existing) {
+    existing = { email: normalized, name: u.name || normalized.split("@")[0], passHash: "", role: u.role || "student" };
+    users.push(existing);
+  } else {
+    existing.name = u.name || existing.name;
+    if (u.role) existing.role = u.role;
+  }
+  writeUsers(users);
+  safeSet(SESSION_KEY, normalized);
+  return existing;
 }
 
 /** Makes sure the demo account and its pre-loaded data exist. */

@@ -230,10 +230,12 @@ export interface StudentData {
 }
 
 export interface User {
+  id?: string;
   email: string;
   name: string;
   passHash: string;
   demo?: boolean;
+  role?: "student" | "teacher" | "admin";
 }
 
 export function emptyData(): StudentData {

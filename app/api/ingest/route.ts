@@ -3,7 +3,7 @@
 import { processDocumentServerSide, deleteDocumentServerSide } from "@/lib/ingest-server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-export const maxDuration = 120; // Allow sufficient time for large documents
+export const maxDuration = 60; // Max allowed on Vercel Hobby tier
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {

@@ -55,7 +55,7 @@ export async function getAuthUser(): Promise<AuthUserProfile | null> {
       id: localUser.email,
       email: localUser.email,
       fullName: localUser.name,
-      role: "student",
+      role: (localUser.role as UserRole) || "student",
       isDemo: !!localUser.demo,
     };
   }
