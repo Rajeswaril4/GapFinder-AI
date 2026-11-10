@@ -94,24 +94,106 @@ async function remote(email: string) {
   }
 }
 
+function compactForRemote(d: StudentData): any {
+  return {
+    ...d,
+    materials: (d.materials ?? []).map((m: any) => ({
+      id: m.id,
+      name: m.name,
+      kind: m.kind,
+      detectedKind: m.detectedKind,
+      status: m.status ?? "ready",
+      hash: m.hash ?? "",
+      wordCount: m.wordCount ?? 0,
+      headings: m.headings ?? [],
+      warnings: m.warnings ?? [],
+      createdAt: m.createdAt,
+      pages: Array.isArray(m.pages) ? m.pages.slice(0, 3) : [],
+    })),
+    chunks: (d.chunks ?? []).map((c: any) => ({
+      id: c.id,
+      materialId: c.materialId,
+      materialName: c.materialName,
+      kind: c.kind,
+      section: c.section,
+      page: c.page,
+      text: typeof c.text === "string" ? c.text.slice(0, 160) : "",
+    })),
+    agentRuns: (d.agentRuns ?? []).slice(-20),
+  };
+}
+
 async function pullRemote(email: string): Promise<any | null> {
   const r = await remote(email);
   if (!r) return null;
+  let cloudData: any = null;
   try {
     const { data } = await r.sb.from("student_state").select("data").eq("user_id", r.uid).maybeSingle();
-    return data?.data ?? null;
+    cloudData = data?.data ?? null;
   } catch {
-    return null;
+    cloudData = null;
   }
+
+  // Hydrate from documents table if materials are missing or new
+  try {
+    const { data: docs } = await r.sb.from("documents").select("*").eq("user_id", r.uid);
+    if (docs?.length) {
+      cloudData = cloudData || { subject: docs[0]?.name ? docs[0].name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ") : "General Studies" };
+      const existingIds = new Set((cloudData.materials || []).map((m: any) => m.id || m.name));
+      const dbMaterials = docs.filter((d: any) => !existingIds.has(d.id) && !existingIds.has(d.name)).map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        kind: d.kind,
+        detectedKind: d.detected_kind,
+        pages: [],
+        createdAt: new Date(d.created_at).getTime(),
+        status: d.status || "ready",
+        hash: d.hash || "",
+        wordCount: d.word_count || 0,
+        headings: d.headings || [],
+        warnings: d.warnings || [],
+      }));
+      cloudData.materials = [...(cloudData.materials || []), ...dbMaterials];
+    }
+  } catch (err) {
+    console.warn("[store] Document hydration fallback:", err);
+  }
+
+  return cloudData;
 }
 
 async function pushRemote(email: string, d: StudentData): Promise<void> {
+  if (email.toLowerCase() === DEMO_EMAIL) return;
+  const compacted = compactForRemote(d);
+
+  // 1. Try server endpoint /api/student/state (bypasses RLS issues and handles cloud sync securely)
+  if (typeof window !== "undefined") {
+    try {
+      const sb = getSupabaseBrowserClient();
+      const session = (await sb?.auth.getSession().catch(() => null))?.data?.session;
+      const token = session?.access_token;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      const res = await fetch("/api/student/state", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ data: compacted, userId: session?.user?.id }),
+      });
+      if (res.ok) return;
+    } catch (err) {
+      console.warn("[store] Server state sync fallback:", err);
+    }
+  }
+
+  // 2. Direct client upsert fallback
   const r = await remote(email);
   if (!r) return;
   try {
-    await r.sb.from("student_state").upsert({ user_id: r.uid, data: d, updated_at: new Date().toISOString() });
-  } catch {
-    /* offline or table missing: local copy still works */
+    await r.sb.from("student_state").upsert({ user_id: r.uid, data: compacted, updated_at: new Date().toISOString() });
+  } catch (err) {
+    console.warn("[store] Direct state upsert fallback:", err);
   }
 }
 

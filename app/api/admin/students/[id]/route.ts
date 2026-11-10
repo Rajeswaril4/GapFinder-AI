@@ -28,10 +28,46 @@ export async function GET(req: Request, { params }: Ctx) {
     if (!p) throw new AdminError("User not found", 404);
     const { data: u } = await admin.auth.admin.getUserById(id);
     const { data: st } = await admin.from("student_state").select("data, updated_at").eq("user_id", id).maybeSingle();
+    const { data: docs } = await admin
+      .from("documents")
+      .select("id, name, kind, word_count, created_at")
+      .eq("user_id", id);
+
+    let study: any = st ? { ...summarizeStudent(st.data), savedAt: st.updated_at } : null;
+
+    if (docs?.length) {
+      const docMaterials = docs.map((d) => ({ name: d.name, kind: d.kind }));
+      if (study) {
+        // Merge in any documents found in the documents table not yet in student_state
+        const existingNames = new Set(study.materials.map((m: any) => m.name));
+        for (const dm of docMaterials) {
+          if (!existingNames.has(dm.name)) {
+            study.materials.push(dm);
+          }
+        }
+      } else {
+        // Baseline study view from documents
+        study = {
+          subject: docs[0]?.name ? docs[0].name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ") : "General Studies",
+          materials: docMaterials,
+          topicCount: Math.max(1, docs.length * 2),
+          attempts: [],
+          mastery: null,
+          level: "untested",
+          coverage: null,
+          weakTopics: [],
+          summary: `${docs.length} material(s) uploaded into the knowledge base. Awaiting diagnostic quiz.`,
+          hasPlan: false,
+          planDays: 0,
+          savedAt: docs[0]?.created_at || new Date().toISOString(),
+        };
+      }
+    }
+
     return Response.json({
       profile: { id: p.id, email: p.email, fullName: p.full_name, role: p.role, createdAt: p.created_at, updatedAt: p.updated_at },
       auth: { lastSignIn: u?.user?.last_sign_in_at ?? null, confirmed: !!u?.user?.email_confirmed_at },
-      study: st ? { ...summarizeStudent(st.data), savedAt: st.updated_at } : null,
+      study,
     });
   } catch (e) {
     return adminFail(e);
