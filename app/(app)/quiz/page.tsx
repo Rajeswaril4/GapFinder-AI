@@ -74,7 +74,7 @@ export default function QuizPage() {
     }
   }
 
-  const pastAttempt = data.attempts.find((a) => a.id === review);
+  const pastAttempt = (data?.attempts || []).find((a) => a.id === review);
   const answered = quiz ? quiz.questions.filter((q) => answers[q.id]?.trim()).length : 0;
 
   return (
@@ -106,7 +106,7 @@ export default function QuizPage() {
               </select>
             </div>
             <p className="muted" style={{ fontSize: 13.5 }}>
-              {data.attempts.length
+              {(data?.attempts?.length || 0)
                 ? "Adaptive: more questions on weak and unassessed topics, targeting the subtopics and misconceptions from last time. Harder questions for topics you already know."
                 : "First diagnostic: covers every topic so we can find your gaps."}
             </p>
@@ -117,11 +117,11 @@ export default function QuizPage() {
           </div>
           <div className="card">
             <h2>Recent results</h2>
-            {!data.attempts.length ? (
+            {!(data?.attempts?.length) ? (
               <p className="muted">None yet.</p>
             ) : (
               <div className="stack" style={{ gap: 6 }}>
-                {[...data.attempts].sort((a, b) => b.createdAt - a.createdAt).map((a, i, arr) => (
+                {[...(data?.attempts || [])].sort((a, b) => b.createdAt - a.createdAt).map((a, i, arr) => (
                   <div className="row between" key={a.id}>
                     <span>Attempt {arr.length - i} · {when(a.createdAt)} · {a.questions.length} Qs · <b>{pct(attemptScore(a))}</b></span>
                     <Button size="sm" variant="secondary" onClick={() => setReview(review === a.id ? "" : a.id)}>

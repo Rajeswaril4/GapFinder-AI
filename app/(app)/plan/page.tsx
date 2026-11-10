@@ -11,7 +11,8 @@ const KIND_LABEL: Record<PlanBlock["kind"], string> = { learn: "Concept revision
 
 export default function PlanPage() {
   const { data, update } = useApp();
-  const report = data.reports[data.reports.length - 1];
+  const reports = data?.reports || [];
+  const report = reports[reports.length - 1];
 
   // Calendar constraints: strictly from today through the last day of the current month
   const { todayStr, endOfMonthStr } = useMemo(() => {
@@ -23,10 +24,10 @@ export default function PlanPage() {
     return { todayStr: today, endOfMonthStr: end };
   }, []);
 
-  const [days, setDays] = useState(data.planPrefs.days);
-  const [hours, setHours] = useState(data.planPrefs.hoursPerDay);
+  const [days, setDays] = useState(data?.planPrefs?.days ?? 5);
+  const [hours, setHours] = useState(data?.planPrefs?.hoursPerDay ?? 2);
   const [examDate, setExamDate] = useState(() => {
-    const saved = data.planPrefs.examDate ?? "";
+    const saved = data?.planPrefs?.examDate ?? "";
     if (saved && (saved < todayStr || saved > endOfMonthStr)) return "";
     return saved;
   });

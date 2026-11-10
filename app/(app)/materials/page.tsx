@@ -87,7 +87,7 @@ export default function MaterialsPage() {
   }
 
   async function onBuildMap() {
-    if (data.attempts.length && !confirm("Rebuild the topic map? Topics with the same name keep their progress history.")) return;
+    if ((data?.attempts?.length || 0) && !confirm("Rebuild the topic map? Topics with the same name keep their progress history.")) return;
     setBusy("Syllabus Mapping Agent is building your topic map…");
     setMsgs([]);
     try {

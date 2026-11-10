@@ -17,7 +17,8 @@ const MIN_SCORE = CONFIG.retrieval.minExplainScore; // BM25 score below which we
 
 export default function ExplainPage() {
   const { data, retriever } = useApp();
-  const weakTopics = (data.reports[data.reports.length - 1]?.topics ?? []).filter((t) => t.level === "weak" || t.level === "medium").slice(0, 4);
+  const reports = data?.reports || [];
+  const weakTopics = (reports[reports.length - 1]?.topics ?? []).filter((t) => t.level === "weak" || t.level === "medium").slice(0, 4);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);

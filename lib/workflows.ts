@@ -157,8 +157,8 @@ export async function uploadMaterialFile(
 
       let next: StudentData = {
         ...data,
-        materials: [...data.materials, { ...serverResult.material, status: "ready" }],
-        chunks: [...data.chunks, ...serverResult.chunks],
+        materials: [...(data.materials || []), { ...serverResult.material, status: "ready" }],
+        chunks: [...(data.chunks || []), ...(serverResult.chunks || [])],
       };
       if (next.topics.length) {
         next = await track(
@@ -325,7 +325,7 @@ export async function generateQuiz(data: StudentData, total: number): Promise<Qu
   const r = new Retriever(data.chunks);
   const alloc = questionAllocation(data, total);
   const report = data.reports[data.reports.length - 1];
-  const avoid = data.attempts.slice(-2).flatMap((a) => a.questions.map((q) => q.question));
+  const avoid = (data.attempts || []).slice(-2).flatMap((a) => a.questions.map((q) => q.question));
 
   const topics = await track(
     log,
@@ -404,7 +404,7 @@ export async function evaluateAttempt(
 /** Deterministic levels + AI-written reasons (falls back to the deterministic evidence). */
 export async function analyze(data: StudentData, log: RunLog = []): Promise<{ report: GapReport; warning?: string }> {
   const report = buildGapReport(data);
-  const latest = data.attempts.find((a) => a.id === report.attemptId);
+  const latest = (data.attempts || []).find((a) => a.id === report.attemptId);
   const mistakes = latest
     ? latest.questions
         .map((q) => ({ q, e: latest.evaluations.find((e) => e.questionId === q.id) }))
@@ -527,7 +527,7 @@ export async function completeLoop(
   log: RunLog = []
 ): Promise<{ data: StudentData; warnings: string[] }> {
   const warnings: string[] = [];
-  let next: StudentData = { ...data, attempts: [...data.attempts, attempt] };
+  let next: StudentData = { ...data, attempts: [...(data.attempts || []), attempt] };
   const prev = data.reports[data.reports.length - 1];
   const { report, warning } = await analyze(next, log);
   if (warning) warnings.push(warning);

@@ -108,13 +108,16 @@ function fmt(n: number) {
 }
 
 export function buildGapReport(data: StudentData): GapReport {
-  const all = rows(data.attempts);
-  const attempts = sorted(data.attempts);
+  const attemptsList = data?.attempts || [];
+  const topicsList = data?.topics || [];
+  const chunksList = data?.chunks || [];
+  const all = rows(attemptsList);
+  const attempts = sorted(attemptsList);
   const latestIdx = attempts.length - 1;
   const latest = attempts[latestIdx];
-  const mastery = masteryByTopic(data.attempts);
-  const maxWeight = Math.max(1, ...data.topics.map((t) => t.examWeight));
-  const chunkById = new Map(data.chunks.map((c) => [c.id, c]));
+  const mastery = masteryByTopic(attemptsList);
+  const maxWeight = Math.max(1, ...(topicsList.length ? topicsList.map((t) => t.examWeight) : [1]));
+  const chunkById = new Map(chunksList.map((c) => [c.id, c]));
 
   // misconception counts per topic (recurring = seen more than once)
   const misByTopic = new Map<string, Map<string, number>>();
@@ -127,9 +130,9 @@ export function buildGapReport(data: StudentData): GapReport {
 
   // which topics are prerequisites of other topics (used to boost priority)
   const prereqOf = new Map<string, string[]>();
-  for (const t of data.topics) for (const p of t.prerequisites ?? []) prereqOf.set(p, [...(prereqOf.get(p) ?? []), t.id]);
+  for (const t of topicsList) for (const p of t.prerequisites ?? []) prereqOf.set(p, [...(prereqOf.get(p) ?? []), t.id]);
 
-  const firstPass = data.topics.map((t) => {
+  const firstPass = topicsList.map((t) => {
     const m = mastery.get(t.id);
     return { t, m, level: levelFor(m?.mastery ?? 0, m?.n ?? 0) };
   });

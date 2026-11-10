@@ -2,6 +2,7 @@
 // Persistence: accounts + session in localStorage, each student's data in IndexedDB
 // (large PDFs don't fit in localStorage's ~5 MB). No external database needed.
 import type { StudentData, User } from "./types";
+import { emptyData } from "./types";
 import { buildDemoData, DEMO_EMAIL, DEMO_PASSWORD } from "./seed";
 export { DEMO_EMAIL, DEMO_PASSWORD } from "./seed";
 import SHA256 from "crypto-js/sha256";
@@ -138,7 +139,10 @@ async function pullRemote(email: string): Promise<any | null> {
   try {
     const { data: docs } = await r.sb.from("documents").select("*").eq("user_id", r.uid);
     if (docs?.length) {
-      cloudData = cloudData || { subject: docs[0]?.name ? docs[0].name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ") : "General Studies" };
+      cloudData = cloudData || {
+        ...emptyData(),
+        subject: docs[0]?.name ? docs[0].name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ") : "General Studies",
+      };
       const existingIds = new Set((cloudData.materials || []).map((m: any) => m.id || m.name));
       const dbMaterials = docs.filter((d: any) => !existingIds.has(d.id) && !existingIds.has(d.name)).map((d: any) => ({
         id: d.id,
@@ -159,7 +163,33 @@ async function pullRemote(email: string): Promise<any | null> {
     console.warn("[store] Document hydration fallback:", err);
   }
 
-  return cloudData;
+  // Hydrate from quiz_attempts table if attempts are missing
+  try {
+    const { data: attempts } = await r.sb.from("quiz_attempts").select("*").eq("user_id", r.uid);
+    if (attempts?.length) {
+      cloudData = cloudData || {
+        ...emptyData(),
+        subject: "General Studies",
+      };
+      const existingAttemptIds = new Set((cloudData.attempts || []).map((a: any) => a.id));
+      const dbAttempts = attempts.filter((a: any) => !existingAttemptIds.has(a.id)).map((a: any) => ({
+        id: a.id,
+        createdAt: new Date(a.created_at).getTime(),
+        questions: [],
+        answers: a.answers || {},
+        confidence: a.confidence || {},
+        timeSpentSec: 0,
+        evaluations: [],
+      }));
+      if (dbAttempts.length) {
+        cloudData.attempts = [...(cloudData.attempts || []), ...dbAttempts];
+      }
+    }
+  } catch (err) {
+    console.warn("[store] Quiz attempts hydration fallback:", err);
+  }
+
+  return cloudData ? normalize(cloudData) : null;
 }
 
 async function pushRemote(email: string, d: StudentData): Promise<void> {
@@ -199,15 +229,41 @@ async function pushRemote(email: string, d: StudentData): Promise<void> {
 
 /** Fills fields added in later versions so older saved data keeps working. */
 function normalize(d: any): StudentData {
+  const base = emptyData();
+  if (!d || typeof d !== "object") return base;
   return {
+    ...base,
     ...d,
     version: 2,
-    agentRuns: d.agentRuns ?? [],
+    subject: d.subject || base.subject,
+    agentRuns: Array.isArray(d.agentRuns) ? d.agentRuns : [],
     planPrefs: d.planPrefs ?? { days: 5, hoursPerDay: 2 },
-    materials: (d.materials ?? []).map((m: any) => ({ status: "ready", hash: "", wordCount: 0, headings: [], warnings: [], ...m })),
-    topics: (d.topics ?? []).map((t: any) => ({ description: "", learningObjectives: [], prerequisites: [], ...t })),
-    pastQuestions: (d.pastQuestions ?? []).map((q: any) => ({ confidence: 1, needsReview: false, marks: null, qtype: "other", difficulty: "medium", ...q })),
-    reports: (d.reports ?? []).filter((r: any) => r.coverage), // old-format reports are regenerated on the next quiz
+    materials: (Array.isArray(d.materials) ? d.materials : []).map((m: any) => ({
+      status: "ready",
+      hash: "",
+      wordCount: 0,
+      headings: [],
+      warnings: [],
+      ...m,
+    })),
+    chunks: Array.isArray(d.chunks) ? d.chunks : [],
+    topics: (Array.isArray(d.topics) ? d.topics : []).map((t: any) => ({
+      description: "",
+      learningObjectives: [],
+      prerequisites: [],
+      ...t,
+    })),
+    pastQuestions: (Array.isArray(d.pastQuestions) ? d.pastQuestions : []).map((q: any) => ({
+      confidence: 1,
+      needsReview: false,
+      marks: null,
+      qtype: "other",
+      difficulty: "medium",
+      ...q,
+    })),
+    attempts: Array.isArray(d.attempts) ? d.attempts : [],
+    reports: (Array.isArray(d.reports) ? d.reports : []).filter((r: any) => r && r.coverage), // old-format reports are regenerated on the next quiz
+    plan: d.plan ?? null,
   };
 }
 

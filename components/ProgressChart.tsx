@@ -7,7 +7,7 @@ const COLORS = ["#0e7490", "#d97706", "#db2777", "#16a34a", "#7c3aed", "#dc2626"
 
 /** Line chart of overall score + per-topic score across quiz attempts (hand-rolled SVG, no chart lib). */
 export function ProgressChart({ data }: { data: StudentData }) {
-  const attempts = [...data.attempts].sort((a, b) => a.createdAt - b.createdAt);
+  const attempts = [...(data?.attempts || [])].sort((a, b) => a.createdAt - b.createdAt);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   if (attempts.length === 0) return <p className="muted">Take a diagnostic quiz to start tracking progress.</p>;
 
@@ -18,7 +18,7 @@ export function ProgressChart({ data }: { data: StudentData }) {
 
   const series = [
     { id: "overall", name: "Overall", color: "#4f46e5", width: 3.5, pts: attempts.map((a, i) => [i, attemptScore(a)] as [number, number]) },
-    ...data.topics.map((t, k) => ({
+    ...(data?.topics || []).map((t, k) => ({
       id: t.id,
       name: t.name,
       color: COLORS[k % COLORS.length],
@@ -85,7 +85,7 @@ export function ProgressChart({ data }: { data: StudentData }) {
 
 /** "Attempt 1: 40% on Algebra → Attempt 3: 75%" style table. */
 export function ProgressTable({ data }: { data: StudentData }) {
-  const attempts = [...data.attempts].sort((a, b) => a.createdAt - b.createdAt);
+  const attempts = [...(data?.attempts || [])].sort((a, b) => a.createdAt - b.createdAt);
   if (!attempts.length) return null;
   const per = attempts.map(attemptTopicScores);
   const cell = (v?: number) =>
@@ -109,7 +109,7 @@ export function ProgressTable({ data }: { data: StudentData }) {
           </tr>
         </thead>
         <tbody>
-          {data.topics.map((t) => {
+          {(data?.topics || []).map((t) => {
             const vals = per.map((p) => p[t.id]).filter((v) => v !== undefined) as number[];
             const delta = vals.length > 1 ? vals[vals.length - 1] - vals[0] : undefined;
             return (

@@ -7,20 +7,25 @@ import { attemptScore } from "@/lib/analysis";
 
 export default function Dashboard() {
   const { data, user } = useApp();
-  const report = data.reports[data.reports.length - 1];
-  const prev = data.reports[data.reports.length - 2];
-  const attempts = [...data.attempts].sort((a, b) => a.createdAt - b.createdAt);
+  const reports = data?.reports || [];
+  const report = reports[reports.length - 1];
+  const prev = reports[reports.length - 2];
+  const attempts = [...(data?.attempts || [])].sort((a, b) => a.createdAt - b.createdAt);
   const last = attempts[attempts.length - 1];
-  const weak = report?.topics.filter((t) => t.level === "weak") ?? [];
-  const count = (l: string) => report?.topics.filter((t) => t.level === l).length ?? data.topics.length * Number(l === "untested");
-  const upcoming = (data.plan?.schedule ?? []).flatMap((d) => d.blocks.filter((b) => !b.done).map((b) => ({ day: d.day, b }))).slice(0, 4);
-  const reassess = report?.topics.filter((t) => t.needsReassessment && t.level !== "untested") ?? [];
+  const weak = (report?.topics || []).filter((t) => t.level === "weak");
+  const count = (l: string) => (report?.topics || []).filter((t) => t.level === l).length ?? (data?.topics?.length || 0) * Number(l === "untested");
+  const upcoming = (data?.plan?.schedule ?? []).flatMap((d) => (d.blocks || []).filter((b) => !b.done).map((b) => ({ day: d.day, b }))).slice(0, 4);
+  const reassess = (report?.topics || []).filter((t) => t.needsReassessment && t.level !== "untested");
 
-  const next = !data.materials.length
+  const materialsCount = data?.materials?.length || 0;
+  const topicsCount = data?.topics?.length || 0;
+  const attemptsCount = attempts.length;
+
+  const next = !materialsCount
     ? { title: "Upload your study material", body: "Add your syllabus, textbook chapters or notes, and past papers.", href: "/materials", cta: "Upload material" }
-    : !data.topics.length
+    : !topicsCount
     ? { title: "Build your topic map", body: "GapFinder reads your syllabus and links every past-paper question to a topic.", href: "/materials", cta: "Build topic map" }
-    : !data.attempts.length
+    : !attemptsCount
     ? { title: "Take your first diagnostic quiz", body: "Questions are generated from your own notes, each with a citation.", href: "/quiz", cta: "Start diagnostic" }
     : {
         title: weak.length ? `Fix your weakest topic: ${weak[0].name}` : "Keep going — re-test to confirm progress",
@@ -31,7 +36,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHead title={`Hi ${user?.name.split(" ")[0]} 👋`} desc={<>Subject: <b>{data.subject}</b></>} />
+      <PageHead title={`Hi ${user?.name ? user.name.split(" ")[0] : "Student"} 👋`} desc={<>Subject: <b>{data?.subject || "General Studies"}</b></>} />
 
       <div className="card" style={{ background: "linear-gradient(135deg,#eef0ff,#f5f3ff)", borderColor: "#dcdcff" }}>
         <div className="row between">
@@ -53,7 +58,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="card">
-          <div className="stat">{report ? `${report.coverage.assessed}/${report.coverage.total}` : `0/${data.topics.length}`}</div>
+          <div className="stat">{report ? `${report.coverage.assessed}/${report.coverage.total}` : `0/${topicsCount}`}</div>
           <div className="stat-label">topics assessed · {count("untested")} not assessed</div>
         </div>
         <div className="card">
@@ -74,7 +79,7 @@ export default function Dashboard() {
             <Link href="/plan" style={{ fontSize: 14 }}>Full plan →</Link>
           </div>
           {!upcoming.length ? (
-            <p className="muted">{data.plan ? "All tasks done — take a follow-up quiz." : "No plan yet."}</p>
+            <p className="muted">{data?.plan ? "All tasks done — take a follow-up quiz." : "No plan yet."}</p>
           ) : (
             <div className="stack" style={{ gap: 8 }}>
               {upcoming.map(({ day, b }) => (

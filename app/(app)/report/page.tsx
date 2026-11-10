@@ -47,8 +47,9 @@ export default function ReportPage() {
   const { data, update } = useApp();
   const [busy, setBusy] = useState(false);
   const [warn, setWarn] = useState("");
-  const report = data.reports[data.reports.length - 1];
-  const prev = data.reports[data.reports.length - 2];
+  const reports = data?.reports || [];
+  const report = reports[reports.length - 1];
+  const prev = reports[reports.length - 2];
 
   if (!report)
     return (

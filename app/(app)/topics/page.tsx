@@ -11,20 +11,23 @@ const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 
 export default function TopicsPage() {
   const { data, update } = useApp();
-  const report = data.reports[data.reports.length - 1];
-  const [sel, setSel] = useState<string>(data.topics[0]?.id ?? "");
+  const reports = data?.reports || [];
+  const report = reports[reports.length - 1];
+  const topics = data?.topics || [];
+  const pastQuestions = data?.pastQuestions || [];
+  const [sel, setSel] = useState<string>(topics[0]?.id ?? "");
   const [editing, setEditing] = useState(false);
   const statusOf = (id: string) => report?.topics.find((t) => t.topicId === id);
   const levelOf = (id: string): Level => statusOf(id)?.level ?? "untested";
-  const maxW = Math.max(1, ...data.topics.map((t) => t.examWeight));
-  const review = data.pastQuestions.filter((q) => q.needsReview);
-  const rare = data.topics.filter((t) => t.examWeight === 0 && data.pastQuestions.length > 0);
+  const maxW = Math.max(1, ...(topics.length ? topics.map((t) => t.examWeight) : [1]));
+  const review = pastQuestions.filter((q) => q.needsReview);
+  const rare = topics.filter((t) => t.examWeight === 0 && pastQuestions.length > 0);
 
   useEffect(() => {
-    if (!data.topics.find((t) => t.id === sel)) setSel(data.topics[0]?.id ?? "");
-  }, [data.topics, sel]);
+    if (!topics.find((t) => t.id === sel)) setSel(topics[0]?.id ?? "");
+  }, [topics, sel]);
 
-  if (!data.topics.length)
+  if (!topics.length)
     return (
       <>
         <PageHead title="2 · Syllabus map" />
