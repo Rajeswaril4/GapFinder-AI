@@ -189,6 +189,33 @@ async function pullRemote(email: string): Promise<any | null> {
     console.warn("[store] Quiz attempts hydration fallback:", err);
   }
 
+  // Hydrate chunks from document_chunks table if missing
+  try {
+    if (cloudData && (!cloudData.chunks || cloudData.chunks.length === 0)) {
+      const { data: dbChunks } = await r.sb
+        .from("document_chunks")
+        .select("*")
+        .eq("user_id", r.uid)
+        .order("chunk_index", { ascending: true })
+        .limit(300);
+      if (dbChunks?.length) {
+        const docNameMap = new Map((cloudData.materials || []).map((m: any) => [m.id, m.name]));
+        const docKindMap = new Map((cloudData.materials || []).map((m: any) => [m.id, m.kind]));
+        cloudData.chunks = dbChunks.map((c: any) => ({
+          id: c.id,
+          materialId: c.document_id,
+          materialName: docNameMap.get(c.document_id) || "Uploaded Document",
+          kind: docKindMap.get(c.document_id) || "notes",
+          section: c.section_heading || "General",
+          page: c.page_number || 1,
+          text: c.text || "",
+        }));
+      }
+    }
+  } catch (err) {
+    console.warn("[store] Chunks hydration fallback:", err);
+  }
+
   return cloudData ? normalize(cloudData) : null;
 }
 

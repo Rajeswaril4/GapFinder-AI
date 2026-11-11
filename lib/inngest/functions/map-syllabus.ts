@@ -21,7 +21,7 @@ export const mapSyllabus = inngest.createFunction(
         schema: TopicMapResultSchema,
         system:
           "You are the Syllabus Mapping Agent. Extract authoritative topics, subtopics, learning objectives and prerequisites. " +
-          "Never invent topics outside the provided text. Merge duplicates.",
+          "Never invent topics outside the provided text. Merge duplicates. Always return at least 1-12 topics.",
         prompt:
           `SYLLABUS CONTENT:\n"""\n${text}\n"""\n` +
           (pastPaperText ? `\nPAST PAPER CONTENT:\n"""\n${pastPaperText.slice(0, 6000)}\n"""\n` : ""),

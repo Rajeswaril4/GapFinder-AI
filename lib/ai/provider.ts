@@ -104,7 +104,7 @@ export async function generateStructuredJson<S extends z.ZodTypeAny>(opts: {
             data: parsed.data,
             metrics: {
               provider: "gemini",
-              model: process.env.GEMINI_MODEL || "gemini-3.5-flash",
+              model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
               durationMs: ms(),
               promptTokens: res.usage.promptTokens,
               completionTokens: res.usage.completionTokens,
@@ -158,7 +158,7 @@ export async function generateStructuredJson<S extends z.ZodTypeAny>(opts: {
           lastErrStr = (e as Error).message;
         }
         // Repair retry: always rebuild from the trimmed base so the prompt never grows
-        prompt = `${base}\n\nYour previous reply was not valid (${lastErrStr}). Return only a valid JSON object with every required field.`;
+        prompt = `${base}\n\nYour previous reply was not valid (${lastErrStr}). Return only a valid JSON object with every required field. Ensure required arrays are populated.`;
       }
       lastError = new Error(`Groq returned invalid response: ${lastErrStr}`);
     } catch (err) {

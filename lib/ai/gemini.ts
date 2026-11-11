@@ -35,7 +35,7 @@ export class GeminiError extends Error {
   }
 }
 
-const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 const API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 export function getGeminiApiKey(): string | null {
@@ -116,9 +116,9 @@ export async function callGemini(opts: GeminiGenerateOptions): Promise<GeminiRes
           continue;
         }
 
-        if (res.status === 404 && model !== "gemini-3.5-flash" && attempt === 1) {
-          console.warn(`[gemini] Model ${model} unavailable (404), auto-switching to gemini-3.5-flash`);
-          return callGemini({ ...opts, model: "gemini-3.5-flash" });
+        if (res.status === 404 && model !== "gemini-1.5-flash" && attempt === 1) {
+          console.warn(`[gemini] Model ${model} unavailable (404), auto-switching to gemini-1.5-flash`);
+          return callGemini({ ...opts, model: "gemini-1.5-flash" });
         }
 
         throw new GeminiError(message, res.status, isRateLimit);

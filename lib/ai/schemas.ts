@@ -23,7 +23,7 @@ export const GeneratedTopicSchema = z.object({
 
 export const TopicMapResultSchema = z.object({
   subject: z.string().default("My Subject"),
-  topics: z.array(GeneratedTopicSchema).min(1),
+  topics: z.array(GeneratedTopicSchema).default([]),
   questions: z.array(z.string()).optional(),
 });
 

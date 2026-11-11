@@ -45,7 +45,7 @@ export async function GET() {
     status: "ok",
     ai: {
       primaryProvider: "Google Gemini",
-      primaryModel: process.env.GEMINI_MODEL || "gemini-3.5-flash",
+      primaryModel: process.env.GEMINI_MODEL || "gemini-1.5-flash",
       fallbackModel: MODEL_ID,
       geminiKeyConfigured: Boolean(process.env.GEMINI_API_KEY),
       groqKeyConfigured: Boolean(process.env.GROQ_API_KEY),

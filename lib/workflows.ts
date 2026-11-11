@@ -206,20 +206,24 @@ export async function buildTopicMap(data: StudentData): Promise<StudentData> {
 
   // 1. Authoritative: check if any uploaded material contains an INDEX or Table of Contents
   let indexMatter: string | null = null;
-  for (const m of data.materials) {
-    const idx = extractIndexMatter(m.pages);
+  for (const m of data.materials || []) {
+    const pages = m.pages || [];
+    const idx = extractIndexMatter(pages);
     if (idx) {
       indexMatter = idx;
       break;
     }
-    const idxSec = extractIndexSection(m.pages.join("\n"));
+    const idxSec = extractIndexSection(pages.join("\n"));
     if (idxSec) {
       indexMatter = idxSec;
       break;
     }
   }
 
-  const syl = data.materials.filter((m) => m.kind === "syllabus").map((m) => m.pages.join("\n")).join("\n\n");
+  const syl = (data.materials || [])
+    .filter((m) => m.kind === "syllabus")
+    .map((m) => (m.pages || []).join("\n"))
+    .join("\n\n");
   
   let source = "";
   let logSourceType = "";
@@ -237,21 +241,51 @@ export async function buildTopicMap(data: StudentData): Promise<StudentData> {
       logSourceType = `syllabus text (${source.length} chars)`;
     }
   } else {
-    // Clean notes headings: exclude front matter and general headings
-    const validHeadings = Array.from(
-      new Set(
-        data.chunks
-          .filter((c) => c.kind === "notes" && !c.section.toLowerCase().includes("front matter"))
-          .map((c) => c.section)
-      )
-    ).filter((h) => !isFrontMatterHeading(h));
-    source = "Headings from the student's notes:\n" + validHeadings.join("\n");
-    logSourceType = "notes headings (no index or syllabus found)";
+    // Collect all valid academic headings from ALL materials & chunks
+    const headingSet = new Set<string>();
+
+    for (const m of data.materials || []) {
+      for (const h of m.headings || []) {
+        const clean = h.trim();
+        if (clean.length > 2 && !clean.toLowerCase().includes("front matter") && !isFrontMatterHeading(clean)) {
+          headingSet.add(clean);
+        }
+      }
+    }
+
+    for (const c of data.chunks || []) {
+      const clean = (c.section || "").trim();
+      if (clean.length > 2 && !clean.toLowerCase().includes("front matter") && !isFrontMatterHeading(clean)) {
+        headingSet.add(clean);
+      }
+    }
+
+    const validHeadings = Array.from(headingSet);
+
+    // Also collect any notes pages text if available
+    const notesPages = (data.materials || [])
+      .flatMap((m) => m.pages || [])
+      .filter((p) => p && p.trim().length > 20);
+
+    if (validHeadings.length >= 2) {
+      source = "Academic Headings and Sections from Study Material:\n" + validHeadings.join("\n");
+      logSourceType = `material headings (${validHeadings.length} sections)`;
+    } else if (notesPages.length > 0) {
+      source = "Content from Study Material:\n" + notesPages.slice(0, 5).join("\n\n");
+      logSourceType = "notes content pages";
+    } else if ((data.chunks || []).length > 0) {
+      source = "Excerpts from Study Material:\n" + (data.chunks || []).slice(0, 10).map((c) => `${c.section}: ${c.text.slice(0, 150)}`).join("\n\n");
+      logSourceType = "material chunk excerpts";
+    } else {
+      const matNames = (data.materials || []).map((m) => m.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " "));
+      source = "Study Topics from uploaded documents:\n" + matNames.join("\n");
+      logSourceType = "document titles";
+    }
   }
 
-  const papers = data.materials.filter((m) => m.kind === "past_paper");
-  const heuristicCount = papers.reduce((s, m) => s + extractPastQuestionsDetailed(m.pages.join("\n")).length, 0);
-  const paperText = papers.length && heuristicCount < 2 ? papers.map((m) => m.pages.join("\n")).join("\n\n") : undefined;
+  const papers = (data.materials || []).filter((m) => m.kind === "past_paper");
+  const heuristicCount = papers.reduce((s, m) => s + extractPastQuestionsDetailed((m.pages || []).join("\n")).length, 0);
+  const paperText = papers.length && heuristicCount < 2 ? papers.map((m) => (m.pages || []).join("\n")).join("\n\n") : undefined;
 
   const res = await track(
     log,
