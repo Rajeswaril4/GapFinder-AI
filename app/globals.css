@@ -23,6 +23,30 @@
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.06);
 }
 
+[data-theme="dark"] {
+  --bg: #0c0f1d;
+  --panel: #14182b;
+  --ink: #f1f5f9;
+  --muted: #94a3b8;
+  --line: #222942;
+  --brand: #6366f1;
+  --brand-ink: #ffffff;
+  --brand-soft: #1e2246;
+  --weak: #f87171;
+  --weak-soft: #2e1418;
+  --medium: #fbbf24;
+  --medium-soft: #2e220e;
+  --strong: #34d399;
+  --strong-soft: #0d2818;
+  --untested: #94a3b8;
+  --untested-soft: #1e2538;
+  --retrieval: #22d3ee;
+  --retrieval-soft: #082f49;
+  --generation: #c084fc;
+  --generation-soft: #2e1065;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
@@ -31,6 +55,7 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 15px;
   line-height: 1.55;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 a { color: var(--brand); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -102,7 +127,7 @@ code { background: var(--untested-soft); padding: 1px 6px; border-radius: 6px; f
 .btn.sm { padding: 5px 10px; font-size: 13px; }
 
 input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], select, textarea {
-  width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font: inherit; background: #fff; color: var(--ink);
+  width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font: inherit; background: var(--panel); color: var(--ink);
 }
 textarea { min-height: 90px; resize: vertical; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand-soft); border-color: var(--brand); }
@@ -175,7 +200,7 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: v
 .auth-form .card { width: 100%; max-width: 400px; }
 .tabs { display: flex; gap: 4px; background: var(--untested-soft); padding: 4px; border-radius: 10px; margin-bottom: 16px; }
 .tabs button { flex: 1; border: 0; background: transparent; padding: 8px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; color: var(--muted); }
-.tabs button.on { background: #fff; color: var(--ink); box-shadow: var(--shadow); }
+.tabs button.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
 @media (max-width: 860px) { .auth { grid-template-columns: 1fr; } .auth-hero { padding: 32px 20px; } .auth-hero h1 { font-size: 30px; } }
 
 /* ---------- pipeline diagram ---------- */
@@ -216,5 +241,14 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: v
 .progress { height: 6px; border-radius: 99px; background: var(--untested-soft); overflow: hidden; }
 .progress > span { display: block; height: 100%; background: var(--brand); transition: width .3s; }
 .conf { display: inline-flex; gap: 4px; }
-.conf button { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.conf button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; }
 .conf button.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+
+.next-step-card {
+  background: linear-gradient(135deg, #eef0ff, #f5f3ff);
+  border: 1px solid #dcdcff !important;
+}
+[data-theme="dark"] .next-step-card {
+  background: linear-gradient(135deg, #181d38, #1c1836);
+  border: 1px solid #2b335c !important;
+}

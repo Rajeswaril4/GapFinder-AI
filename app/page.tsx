@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const STEPS = [
   ["Upload", "Syllabus, textbook chapters, notes and past papers (PDF or text)."],
@@ -39,6 +40,7 @@ export default function Landing() {
         <div className="row">
           <a href="#how">How it works</a>
           <a href="#features">Features</a>
+          <ThemeToggle size="sm" />
           <Link className="btn sm" href={cta.href}>{ready && user ? "Dashboard" : "Log in"}</Link>
         </div>
       </header>

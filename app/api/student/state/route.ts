@@ -72,10 +72,45 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const dataUserId = body.userId;
-    const finalUserId = userId || dataUserId;
+    const isUuid = (s?: string | null): s is string =>
+      typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
-    if (!finalUserId) {
-      return Response.json({ error: "Not authenticated" }, { status: 401 });
+    let resolvedUserId: string | null = null;
+    if (isUuid(userId)) {
+      resolvedUserId = userId;
+    } else if (isUuid(dataUserId)) {
+      resolvedUserId = dataUserId;
+    } else {
+      const rawCandidate = body.email || (typeof dataUserId === "string" ? dataUserId : "") || (typeof userId === "string" ? (userId as string) : "");
+      const emailCandidate = (typeof rawCandidate === "string" && rawCandidate.includes("@") ? rawCandidate : "").toLowerCase().trim();
+      if (emailCandidate) {
+        // Look up by email in profiles
+        const { data: prof } = await admin.from("profiles").select("id").eq("email", emailCandidate).maybeSingle();
+        if (prof?.id) {
+          resolvedUserId = prof.id;
+        } else {
+          // Look up in auth.users
+          try {
+            const { data: authList } = await admin.auth.admin.listUsers();
+            const match = authList?.users?.find((u) => u.email?.toLowerCase() === emailCandidate);
+            if (match) {
+              resolvedUserId = match.id;
+              await admin.from("profiles").upsert({
+                id: match.id,
+                email: emailCandidate,
+                full_name: match.user_metadata?.full_name || emailCandidate.split("@")[0],
+                role: "student",
+              });
+            }
+          } catch (e) {
+            console.warn("[api/student/state] Auth user lookup warning:", e);
+          }
+        }
+      }
+    }
+
+    if (!resolvedUserId) {
+      return Response.json({ error: "Not authenticated or student profile not found" }, { status: 401 });
     }
 
     const rawData = body.data;
@@ -88,7 +123,7 @@ export async function POST(req: Request) {
 
     // 1. Upsert into student_state
     const { error: stateErr } = await admin.from("student_state").upsert({
-      user_id: finalUserId,
+      user_id: resolvedUserId,
       data: compacted,
       updated_at: nowIso,
     });
@@ -97,19 +132,21 @@ export async function POST(req: Request) {
       console.error("[api/student/state] Upsert student_state error:", stateErr);
     }
 
-    // 2. If an attempt is passed or present in data, persist to quiz_attempts table
-    const attempt = body.attempt || (Array.isArray(compacted.attempts) ? compacted.attempts[compacted.attempts.length - 1] : null);
-    if (attempt && attempt.id) {
-      try {
-        await admin.from("quiz_attempts").upsert({
-          id: attempt.id,
-          user_id: finalUserId,
-          answers: attempt.answers || {},
-          confidence: attempt.confidence || {},
-          created_at: attempt.createdAt ? new Date(attempt.createdAt).toISOString() : nowIso,
-        });
-      } catch (attErr) {
-        console.warn("[api/student/state] Upsert quiz_attempt warning:", attErr);
+    // 2. Persist quiz attempts to quiz_attempts table so admin dashboard can track them
+    if (Array.isArray(compacted.attempts) && compacted.attempts.length > 0) {
+      for (const att of compacted.attempts.slice(-5)) {
+        if (!att || !att.id) continue;
+        try {
+          await admin.from("quiz_attempts").upsert({
+            id: att.id,
+            user_id: resolvedUserId,
+            answers: att.answers || {},
+            confidence: att.confidence || {},
+            created_at: att.createdAt ? new Date(att.createdAt).toISOString() : nowIso,
+          });
+        } catch (attErr) {
+          console.warn("[api/student/state] Upsert quiz_attempt warning:", attErr);
+        }
       }
     }
 

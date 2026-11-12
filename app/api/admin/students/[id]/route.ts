@@ -27,11 +27,15 @@ export async function GET(req: Request, { params }: Ctx) {
     const { data: p } = await admin.from("profiles").select("id, email, full_name, role, created_at, updated_at").eq("id", id).maybeSingle();
     if (!p) throw new AdminError("User not found", 404);
     const { data: u } = await admin.auth.admin.getUserById(id);
-    const { data: st } = await admin.from("student_state").select("data, updated_at").eq("user_id", id).maybeSingle();
+    let { data: st } = await admin.from("student_state").select("data, updated_at").eq("user_id", id).maybeSingle();
+    if (!st && p?.email) {
+      const byEmail = await admin.from("student_state").select("data, updated_at").eq("user_id", p.email).maybeSingle();
+      if (byEmail.data) st = byEmail.data;
+    }
     const { data: docs } = await admin
       .from("documents")
       .select("id, name, kind, word_count, created_at")
-      .eq("user_id", id);
+      .or(`user_id.eq.${id},user_id.eq.${p.email}`);
 
     let study: any = st ? { ...summarizeStudent(st.data), savedAt: st.updated_at } : null;
 

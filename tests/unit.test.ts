@@ -19,6 +19,8 @@ import {
 } from "../lib/analysis";
 import { buildPlan, daysUntil } from "../lib/planner";
 import type { QuizQuestion, Material } from "../lib/types";
+import { signJwt, verifyJwt, decodeJwt } from "../lib/jwt";
+import { sendLoginNotificationEmail } from "../lib/email";
 
 describe("Unit Tests - GapFinder AI Production Suite", () => {
   const demoData = buildDemoData();
@@ -505,6 +507,56 @@ describe("Unit Tests - GapFinder AI Production Suite", () => {
       expect(sections).not.toContain("CLASS - 10");
       expect(sections).not.toContain("ACADEMIC STANDARDS");
       expect(sections.some((s) => s.includes("Nutrition"))).toBe(true);
+    });
+  });
+
+  describe("8. JWT Authentication & Login Email Notification", () => {
+    it("signs and verifies a valid JWT token", () => {
+      const payload = { id: "user_123", email: "student@example.com", name: "Raji", role: "student" };
+      const token = signJwt(payload, "custom-secret-key", 3600);
+
+      expect(typeof token).toBe("string");
+      expect(token.split(".")).toHaveLength(3);
+
+      const verified = verifyJwt(token, "custom-secret-key");
+      expect(verified.valid).toBe(true);
+      expect(verified.payload?.email).toBe("student@example.com");
+      expect(verified.payload?.name).toBe("Raji");
+      expect(verified.payload?.role).toBe("student");
+    });
+
+    it("rejects tampered or expired JWT tokens", () => {
+      const payload = { id: "user_tamper", email: "tamper@example.com" };
+      const token = signJwt(payload, "key-1");
+
+      const wrongKey = verifyJwt(token, "key-2");
+      expect(wrongKey.valid).toBe(false);
+      expect(wrongKey.error).toContain("Invalid token signature");
+
+      const expiredToken = signJwt(payload, "key-1", -10);
+      const expiredResult = verifyJwt(expiredToken, "key-1");
+      expect(expiredResult.valid).toBe(false);
+      expect(expiredResult.error).toContain("expired");
+    });
+
+    it("decodes JWT header and payload without verifying signature", () => {
+      const payload = { id: "u_abc", email: "decode@example.com", customField: 42 };
+      const token = signJwt(payload, "any-key");
+
+      const decoded = decodeJwt(token);
+      expect(decoded).not.toBeNull();
+      expect(decoded?.payload?.email).toBe("decode@example.com");
+      expect(decoded?.payload?.customField).toBe(42);
+    });
+
+    it("simulates sending automated login notification email with formatted template", async () => {
+      const res = await sendLoginNotificationEmail("test-student@gapfinder.ai", "Test Student", {
+        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        time: new Date().toUTCString(),
+      });
+
+      expect(res.success).toBe(true);
+      expect(res.messageId).toBeDefined();
     });
   });
 });

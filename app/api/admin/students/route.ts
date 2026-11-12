@@ -107,14 +107,16 @@ export async function GET(req: Request) {
 
     // 5. Merge all sources so true document and quiz counts are accurately reflected
     const students = (profiles ?? []).map((p) => {
-      const s = stats.get(p.id);
-      const fileCount = Math.max(docCounts.get(p.id) || 0, s?.materials || 0);
-      const quizCount = Math.max(attemptCounts.get(p.id) || 0, s?.attempts || 0);
-      const sub = s?.subject || docSubjects.get(p.id) || (fileCount > 0 ? "General Studies" : "");
+      const s = stats.get(p.id) || stats.get(p.email);
+      const fileCount = Math.max(docCounts.get(p.id) || 0, docCounts.get(p.email) || 0, s?.materials || 0);
+      const quizCount = Math.max(attemptCounts.get(p.id) || 0, attemptCounts.get(p.email) || 0, s?.attempts || 0);
+      const sub = s?.subject || docSubjects.get(p.id) || docSubjects.get(p.email) || (fileCount > 0 ? "General Studies" : "");
       const lastAct =
         s?.last_active ||
         lastAttemptDates.get(p.id) ||
+        lastAttemptDates.get(p.email) ||
         lastDocDates.get(p.id) ||
+        lastDocDates.get(p.email) ||
         lastSignIn.get(p.id) ||
         p.updated_at;
 

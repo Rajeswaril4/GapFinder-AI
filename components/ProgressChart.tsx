@@ -7,7 +7,8 @@ const COLORS = ["#0e7490", "#d97706", "#db2777", "#16a34a", "#7c3aed", "#dc2626"
 
 /** Line chart of overall score + per-topic score across quiz attempts (hand-rolled SVG, no chart lib). */
 export function ProgressChart({ data }: { data: StudentData }) {
-  const attempts = [...(data?.attempts || [])].sort((a, b) => a.createdAt - b.createdAt);
+  const safeAttempts = Array.isArray(data?.attempts) ? data.attempts : [];
+  const attempts = [...safeAttempts].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   if (attempts.length === 0) return <p className="muted">Take a diagnostic quiz to start tracking progress.</p>;
 
@@ -39,13 +40,13 @@ export function ProgressChart({ data }: { data: StudentData }) {
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }} role="img" aria-label="Score per attempt">
         {[0, 0.25, 0.5, 0.75, 1].map((v) => (
           <g key={v}>
-            <line x1={P.l} x2={W - P.r} y1={ys(v)} y2={ys(v)} stroke="#e4e7ef" strokeDasharray={v === 0 ? "" : "3 4"} />
-            <text x={P.l - 8} y={ys(v) + 4} fontSize="11" textAnchor="end" fill="#5d6478">{Math.round(v * 100)}%</text>
+            <line x1={P.l} x2={W - P.r} y1={ys(v)} y2={ys(v)} stroke="var(--line)" strokeDasharray={v === 0 ? "" : "3 4"} />
+            <text x={P.l - 8} y={ys(v) + 4} fontSize="11" textAnchor="end" fill="var(--muted)">{Math.round(v * 100)}%</text>
           </g>
         ))}
-        <rect x={P.l} width={W - P.l - P.r} y={ys(0.5)} height={ys(0) - ys(0.5)} fill="#fef2f2" opacity="0.5" />
+        <rect x={P.l} width={W - P.l - P.r} y={ys(0.5)} height={ys(0) - ys(0.5)} fill="var(--weak-soft)" opacity="0.5" />
         {attempts.map((a, i) => (
-          <text key={a.id} x={xs(i)} y={H - 8} fontSize="11" textAnchor="middle" fill="#5d6478">Attempt {i + 1}</text>
+          <text key={a.id} x={xs(i)} y={H - 8} fontSize="11" textAnchor="middle" fill="var(--muted)">Attempt {i + 1}</text>
         ))}
         {series
           .filter((s) => !hidden.has(s.id) && s.pts.length)
@@ -59,7 +60,7 @@ export function ProgressChart({ data }: { data: StudentData }) {
                 points={s.pts.map(([i, v]) => `${xs(i)},${ys(v)}`).join(" ")}
               />
               {s.pts.map(([i, v]) => (
-                <circle key={i} cx={xs(i)} cy={ys(v)} r={s.id === "overall" ? 5 : 3.5} fill="#fff" stroke={s.color} strokeWidth="2">
+                <circle key={i} cx={xs(i)} cy={ys(v)} r={s.id === "overall" ? 5 : 3.5} fill="var(--panel)" stroke={s.color} strokeWidth="2">
                   <title>{`${s.name} — attempt ${i + 1}: ${Math.round(v * 100)}%`}</title>
                 </circle>
               ))}
@@ -85,7 +86,8 @@ export function ProgressChart({ data }: { data: StudentData }) {
 
 /** "Attempt 1: 40% on Algebra → Attempt 3: 75%" style table. */
 export function ProgressTable({ data }: { data: StudentData }) {
-  const attempts = [...(data?.attempts || [])].sort((a, b) => a.createdAt - b.createdAt);
+  const safeAttempts = Array.isArray(data?.attempts) ? data.attempts : [];
+  const attempts = [...safeAttempts].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   if (!attempts.length) return null;
   const per = attempts.map(attemptTopicScores);
   const cell = (v?: number) =>

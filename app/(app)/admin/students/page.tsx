@@ -280,15 +280,15 @@ export default function AdminStudentsPage() {
                   </tbody>
                 </table>
                 {detail.study.summary && <p className="muted">{detail.study.summary}</p>}
-                <h4>Uploaded materials ({detail.study.materials.length})</h4>
-                {detail.study.materials.length ? (
-                  <ul>{detail.study.materials.map((m, i) => <li key={i}>{m.name} <span className="badge">{m.kind}</span></li>)}</ul>
+                <h4>Uploaded materials ({(detail.study.materials || []).length})</h4>
+                {(detail.study.materials || []).length ? (
+                  <ul>{(detail.study.materials || []).map((m, i) => <li key={i}>{m.name} <span className="badge">{m.kind}</span></li>)}</ul>
                 ) : <div className="muted">None</div>}
-                <h4>Quiz attempts ({detail.study.attempts.length})</h4>
-                {detail.study.attempts.length ? (
+                <h4>Quiz attempts ({(detail.study.attempts || []).length})</h4>
+                {(detail.study.attempts || []).length ? (
                   <table>
                     <thead><tr><th>Date</th><th>Questions</th><th>Score</th></tr></thead>
-                    <tbody>{detail.study.attempts.map((a, i) => <tr key={i}><td>{fmt(a.at)}</td><td>{a.questions}</td><td>{pct(a.score)}</td></tr>)}</tbody>
+                    <tbody>{(detail.study.attempts || []).map((a, i) => <tr key={i}><td>{fmt(a.at)}</td><td>{a.questions}</td><td>{pct(a.score)}</td></tr>)}</tbody>
                   </table>
                 ) : <div className="muted">None</div>}
               </>

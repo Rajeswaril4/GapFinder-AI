@@ -229,14 +229,15 @@ async function pushRemote(email: string, d: StudentData): Promise<void> {
       const sb = getSupabaseBrowserClient();
       const session = (await sb?.auth.getSession().catch(() => null))?.data?.session;
       const token = session?.access_token;
+      const jwt = localStorage.getItem("gapfinder_jwt");
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : jwt ? { Authorization: `Bearer ${jwt}` } : {}),
       };
       const res = await fetch("/api/student/state", {
         method: "POST",
         headers,
-        body: JSON.stringify({ data: compacted, userId: session?.user?.id }),
+        body: JSON.stringify({ data: compacted, userId: session?.user?.id, email: email.toLowerCase().trim() }),
       });
       if (res.ok) return;
     } catch (err) {

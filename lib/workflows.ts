@@ -359,7 +359,8 @@ export async function generateQuiz(data: StudentData, total: number): Promise<Qu
   const r = new Retriever(data.chunks);
   const alloc = questionAllocation(data, total);
   const report = data.reports[data.reports.length - 1];
-  const avoid = (data.attempts || []).slice(-2).flatMap((a) => a.questions.map((q) => q.question));
+  const safeAttempts = Array.isArray(data?.attempts) ? data.attempts : [];
+  const avoid = safeAttempts.slice(-2).flatMap((a) => (a.questions || []).map((q) => q.question));
 
   const topics = await track(
     log,
@@ -438,7 +439,8 @@ export async function evaluateAttempt(
 /** Deterministic levels + AI-written reasons (falls back to the deterministic evidence). */
 export async function analyze(data: StudentData, log: RunLog = []): Promise<{ report: GapReport; warning?: string }> {
   const report = buildGapReport(data);
-  const latest = (data.attempts || []).find((a) => a.id === report.attemptId);
+  const safeAttempts = Array.isArray(data?.attempts) ? data.attempts : [];
+  const latest = safeAttempts.find((a) => a.id === report.attemptId);
   const mistakes = latest
     ? latest.questions
         .map((q) => ({ q, e: latest.evaluations.find((e) => e.questionId === q.id) }))
@@ -561,7 +563,8 @@ export async function completeLoop(
   log: RunLog = []
 ): Promise<{ data: StudentData; warnings: string[] }> {
   const warnings: string[] = [];
-  let next: StudentData = { ...data, attempts: [...(data.attempts || []), attempt] };
+  const currentAttempts = Array.isArray(data?.attempts) ? data.attempts : [];
+  let next: StudentData = { ...data, attempts: [...currentAttempts, attempt] };
   const prev = data.reports[data.reports.length - 1];
   const { report, warning } = await analyze(next, log);
   if (warning) warnings.push(warning);

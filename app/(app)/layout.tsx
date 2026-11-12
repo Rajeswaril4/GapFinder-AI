@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { getAuthUser } from "@/lib/auth";
 import { useApp } from "@/components/AppProvider";
 import { Button } from "@/components/ui";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const NAV: { href: string; label: string; step: string; admin?: boolean }[] = [
   { href: "/dashboard", label: "Dashboard", step: "⌂" },
@@ -56,7 +57,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <div style={{ color: "#fff", fontWeight: 600 }}>{user.name}</div>
+          <div className="row between" style={{ marginBottom: 6 }}>
+            <div style={{ color: "#fff", fontWeight: 600 }}>{user.name}</div>
+            <ThemeToggle size="sm" />
+          </div>
           <div style={{ fontSize: 12 }}>{user.email}</div>
           <div style={{ fontSize: 12, marginTop: 4, opacity: 0.8 }}>{data.subject}</div>
           <div className="row" style={{ marginTop: 8 }}>

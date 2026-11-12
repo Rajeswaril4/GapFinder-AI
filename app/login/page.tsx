@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/components/AppProvider";
 import { Alert, Button } from "@/components/ui";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function LoginPage() {
   const { ready, user, signIn, signUp } = useApp();
@@ -52,7 +53,10 @@ export default function LoginPage() {
         </ol>
       </section>
 
-      <section className="auth-form">
+      <section className="auth-form" style={{ position: "relative" }}>
+        <div style={{ position: "absolute", top: 20, right: 24 }}>
+          <ThemeToggle size="sm" />
+        </div>
         <div className="card">
           <div className="tabs">
             <button className={mode === "login" ? "on" : ""} onClick={() => setMode("login")}>Log in</button>

@@ -3,22 +3,24 @@ import Link from "next/link";
 import { useApp } from "@/components/AppProvider";
 import { LevelBadge, PageHead, PriorityBadge, pct, when } from "@/components/ui";
 import { ProgressChart, ProgressTable } from "@/components/ProgressChart";
+import { LoginEmailModal } from "@/components/LoginEmailModal";
 import { attemptScore } from "@/lib/analysis";
 
 export default function Dashboard() {
   const { data, user } = useApp();
-  const reports = data?.reports || [];
+  const reports = Array.isArray(data?.reports) ? data.reports : [];
   const report = reports[reports.length - 1];
   const prev = reports[reports.length - 2];
-  const attempts = [...(data?.attempts || [])].sort((a, b) => a.createdAt - b.createdAt);
+  const safeAttempts = Array.isArray(data?.attempts) ? data.attempts : [];
+  const attempts = [...safeAttempts].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   const last = attempts[attempts.length - 1];
   const weak = (report?.topics || []).filter((t) => t.level === "weak");
   const count = (l: string) => (report?.topics || []).filter((t) => t.level === l).length ?? (data?.topics?.length || 0) * Number(l === "untested");
   const upcoming = (data?.plan?.schedule ?? []).flatMap((d) => (d.blocks || []).filter((b) => !b.done).map((b) => ({ day: d.day, b }))).slice(0, 4);
   const reassess = (report?.topics || []).filter((t) => t.needsReassessment && t.level !== "untested");
 
-  const materialsCount = data?.materials?.length || 0;
-  const topicsCount = data?.topics?.length || 0;
+  const materialsCount = Array.isArray(data?.materials) ? data.materials.length : 0;
+  const topicsCount = Array.isArray(data?.topics) ? data.topics.length : 0;
   const attemptsCount = attempts.length;
 
   const next = !materialsCount
@@ -37,8 +39,9 @@ export default function Dashboard() {
   return (
     <>
       <PageHead title={`Hi ${user?.name ? user.name.split(" ")[0] : "Student"} 👋`} desc={<>Subject: <b>{data?.subject || "General Studies"}</b></>} />
+      <LoginEmailModal />
 
-      <div className="card" style={{ background: "linear-gradient(135deg,#eef0ff,#f5f3ff)", borderColor: "#dcdcff" }}>
+      <div className="card next-step-card">
         <div className="row between">
           <div style={{ maxWidth: 720 }}>
             <span className="badge brand">Next best step</span>
@@ -105,7 +108,7 @@ export default function Dashboard() {
             <div className="stack" style={{ gap: 8 }}>
               {[...attempts].reverse().slice(0, 4).map((a) => (
                 <div key={a.id} className="row between" style={{ borderBottom: "1px solid var(--line)", paddingBottom: 6 }}>
-                  <span>Attempt {attempts.indexOf(a) + 1} · {when(a.createdAt)} · {a.questions.length} questions</span>
+                  <span>Attempt {attempts.indexOf(a) + 1} · {when(a.createdAt)} · {(a.questions || []).length} questions</span>
                   <b>{pct(attemptScore(a))}</b>
                 </div>
               ))}

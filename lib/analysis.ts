@@ -37,7 +37,7 @@ export function questionWeight(q: Pick<QuizQuestion, "difficulty" | "type">): nu
   return (M.difficultyWeight[q.difficulty ?? "medium"] ?? 1) * (M.typeWeight[q.type] ?? 1);
 }
 
-const sorted = (a: Attempt[]) => [...a].sort((x, y) => x.createdAt - y.createdAt);
+const sorted = (a: Attempt[]) => (Array.isArray(a) ? [...a] : []).sort((x, y) => (x.createdAt || 0) - (y.createdAt || 0));
 
 interface Row {
   attemptIdx: number;
@@ -108,9 +108,9 @@ function fmt(n: number) {
 }
 
 export function buildGapReport(data: StudentData): GapReport {
-  const attemptsList = data?.attempts || [];
-  const topicsList = data?.topics || [];
-  const chunksList = data?.chunks || [];
+  const attemptsList = Array.isArray(data?.attempts) ? data.attempts : [];
+  const topicsList = Array.isArray(data?.topics) ? data.topics : [];
+  const chunksList = Array.isArray(data?.chunks) ? data.chunks : [];
   const all = rows(attemptsList);
   const attempts = sorted(attemptsList);
   const latestIdx = attempts.length - 1;
