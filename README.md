@@ -8,7 +8,8 @@
 [![Groq](https://img.shields.io/badge/Fallback-Groq_GPT--OSS--120B-f55036)](https://groq.com/)
 [![Qdrant Cloud](https://img.shields.io/badge/Vector_DB-Qdrant_Cloud-dc2626)](https://qdrant.tech/)
 [![Supabase](https://img.shields.io/badge/Database_&_Auth-Supabase-3ECF8E?logo=supabase)](https://supabase.com/)
-[![Tests](https://img.shields.io/badge/Tests-52_Passed-success)](https://vitest.dev/)
+[![Resend](https://img.shields.io/badge/Email_Delivery-Resend-black?logo=resend)](https://resend.com/)
+[![Tests](https://img.shields.io/badge/Tests-56_Passed-success)](https://vitest.dev/)
 
 ---
 
@@ -23,6 +24,33 @@ Unlike generic AI chat tutors that answer user queries from general training dat
 ```
 Upload Material → Syllabus Map → Diagnostic Quiz → Evaluation → Gap Report → Revision Plan → Re-Test → Dynamic Update
 ```
+
+---
+
+## Recent Features & Enhancements
+
+- 🌗 **Dark & Light Mode Toggle**:
+  - Full application-wide theme switching across the Sidebar, Navigation, Login, and Landing pages.
+  - Powered by a comprehensive CSS variable design system (`[data-theme="dark"]`) featuring deep navy backgrounds (`#090d16`), elevated card surfaces (`#111726`), and accessible contrast ratios.
+  - Zero-flicker client pre-render script injecting active theme before DOM paint.
+  - Persists preference in `localStorage` and automatically syncs with system `prefers-color-scheme`.
+
+- 🔐 **Cryptographic JWT Authentication**:
+  - High-performance HS256 HMAC-SHA256 token signing, verification, and decoding (`lib/jwt.ts`).
+  - Signed tokens issued upon student login and registration, bearing `sub` (userId), `email`, and `role`.
+  - Persisted in both secure `gapfinder_jwt` cookies and `localStorage`.
+  - Dedicated token issuance and verification endpoints at `POST` and `GET /api/auth/token`.
+
+- 📧 **Automated Student Login Notifications & In-App Preview**:
+  - Automatically triggers a styled security and welcome notification email whenever a student signs in.
+  - **Live Production Delivery**: Seamlessly integrates with **Resend** (`RESEND_API_KEY`) to deliver real emails directly into student Gmail inboxes.
+  - **Local Development / Simulation Mode**: Safely logs email dispatches to the server console and stores interactive previews when running offline or locally.
+  - **In-App Dashboard Preview Modal (`components/LoginEmailModal.tsx`)**: An interactive banner on the student dashboard allowing students to view the rendered HTML email card with one click, or test delivery anytime via **"Send Test Alert"**.
+
+- 🛡️ **Zero-Crash Data Hydration & Cloud Sync**:
+  - Crash-proof array sanitation across all dashboard charts, quizzes, and analysis engines (`Array.isArray(...)`).
+  - Automated foreign key profile resolution in `/api/student/state` linking UUIDs and email handles.
+  - Live count aggregation in the Admin Dashboard (`/admin/students`) accurately tracking real student document uploads and quiz submissions.
 
 ---
 
@@ -113,10 +141,14 @@ GROQ_MODEL="openai/gpt-oss-120b"
 QDRANT_URL="https://your-cluster.qdrant.tech:6333"
 QDRANT_API_KEY="your-qdrant-api-key"
 QDRANT_COLLECTION="gapfinder_materials"
+
+# Automated Email Delivery (Resend - Optional for Live Delivery)
+RESEND_API_KEY="re_your-resend-api-key"
+RESEND_FROM_EMAIL="GapFinder AI <onboarding@resend.dev>"
 ```
 
 ### 4. Run Test Suite
-Verify that all 52 unit, integration, admin, and core tests pass:
+Verify that all 56 unit, integration, admin, and core tests pass:
 ```bash
 npm test
 ```
@@ -154,6 +186,8 @@ git push origin main
 | `QDRANT_URL` | Production, Preview, Dev | Qdrant Cloud cluster endpoint |
 | `QDRANT_API_KEY` | Production, Preview, Dev | Qdrant API key |
 | `QDRANT_COLLECTION` | Production, Preview, Dev | `gapfinder_materials` |
+| `RESEND_API_KEY` | Production, Preview, Dev | Resend API key for automated student login emails |
+| `RESEND_FROM_EMAIL` | Production, Preview, Dev | Sender address (e.g. `GapFinder AI <onboarding@resend.dev>`) |
 
 ### Step 3: Configure Supabase Authentication
 1. In the **Supabase Dashboard → Authentication → Providers → Email**:
@@ -203,7 +237,9 @@ git push origin main
 │   │   └── topics/            # Syllabus map & past-paper analysis
 │   ├── api/                   # Serverless API routes
 │   │   ├── admin/students/    # Admin user management endpoints
+│   │   ├── auth/notify-login/ # Automated login email dispatcher
 │   │   ├── auth/register/     # Rate-limit-proof registration endpoint
+│   │   ├── auth/token/        # JWT issuance and verification endpoint
 │   │   ├── evaluate/          # Answer evaluation & misconception tagging
 │   │   ├── explain/           # RAG explanation streaming
 │   │   ├── gap-analysis/      # Diagnosis & mastery computation
@@ -216,7 +252,7 @@ git push origin main
 │   │   └── topic-map/         # Syllabus hierarchy extraction
 │   ├── login/                 # Login & registration page
 │   └── layout.tsx             # Root application layout
-├── components/                # Reusable UI components & AppProvider
+├── components/                # Reusable UI components, ThemeToggle, LoginEmailModal & AppProvider
 ├── lib/
 │   ├── ai/                    # Gemini API & embeddings client
 │   ├── inngest/               # Background durable functions
@@ -228,14 +264,16 @@ git push origin main
 │   ├── bm25.ts                # BM25 lexical retrieval engine
 │   ├── chunk.ts               # Heading-aware document chunker
 │   ├── config.ts              # Tunable thresholds, weights & budgets
+│   ├── email.ts               # Automated email service & Resend API integration
 │   ├── ingest-server.ts       # Server-side document processing pipeline
+│   ├── jwt.ts                 # Cryptographic HS256 JWT signing & verification
 │   ├── llm.ts                 # Groq fallback client & schema validation
 │   ├── planner.ts             # Deterministic revision plan scheduler
 │   ├── retrieval.ts           # Hybrid retriever (Qdrant + BM25)
 │   ├── store.ts               # Offline IndexedDB persistence
 │   └── workflows.ts           # Agent orchestrator & run logger
 ├── supabase/migrations/       # PostgreSQL schema & RLS migrations
-└── tests/                     # 52 unit, integration, e2e, and admin tests
+└── tests/                     # 56 unit, integration, e2e, and admin tests
 ```
 
 ---
